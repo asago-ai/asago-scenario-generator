@@ -36,8 +36,7 @@ def _aps_root(project_root: Path) -> Path:
         if _is_aps_root(candidate):
             return candidate
         raise FileNotFoundError(
-            "ASAGO_SCENARIO_GENERATOR_APS_ROOT is not an APS checkout: "
-            f"{candidate}"
+            f"ASAGO_SCENARIO_GENERATOR_APS_ROOT is not an APS checkout: {candidate}"
         )
 
     search_roots = (project_root, Path(__file__).resolve().parents[1])

@@ -129,7 +129,9 @@ def entry_point_entropy(
     # a set per name avoids collapsing same-name entry points with
     # different canonical identities.  Normalization uses the same
     # canonical name function as entry_point_id computation.
-    from asago_scenario_generator.models.capability_profile import _canonical_entry_point_name
+    from asago_scenario_generator.models.capability_profile import (
+        _canonical_entry_point_name,
+    )
 
     ep_name_to_ids: dict[str, set[str]] = {}
     if profile is not None:

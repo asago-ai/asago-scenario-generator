@@ -386,7 +386,9 @@ def _h_validate_scenario_spec(
 
 def _h_fixtures_dir_exists(world: World, text: str, examples: dict) -> tuple[bool, str]:
     """Handle: the STPA fixtures directory exists at src/asago_scenario_generator/stpa/fixtures."""
-    world.fixture_dir = PROJECT_ROOT / "src" / "asago_scenario_generator" / "stpa" / "fixtures"
+    world.fixture_dir = (
+        PROJECT_ROOT / "src" / "asago_scenario_generator" / "stpa" / "fixtures"
+    )
     if not world.fixture_dir.is_dir():
         return False, f"Fixtures directory not found: {world.fixture_dir}"
     return True, ""
@@ -1153,7 +1155,10 @@ def _h_manifest_no_coupling(
     import asago_scenario_generator.stpa.infra.manifest as stpa_manifest
 
     source = inspect.getsource(stpa_manifest)
-    forbidden = ["asago_scenario_generator.manifest", "asago_scenario_generator.pipeline.manifest"]
+    forbidden = [
+        "asago_scenario_generator.manifest",
+        "asago_scenario_generator.pipeline.manifest",
+    ]
     for ref in forbidden:
         if ref in source:
             return False, f"STPA manifest module references '{ref}'"

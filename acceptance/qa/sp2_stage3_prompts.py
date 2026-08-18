@@ -59,7 +59,12 @@ from qa_harness import (  # noqa: E402
 # ---------------------------------------------------------------------------
 
 PROMPTS_DIR = (
-    PROJECT_ROOT / "src" / "asago_scenario_generator" / "stpa" / "threat_enum" / "prompts"
+    PROJECT_ROOT
+    / "src"
+    / "asago_scenario_generator"
+    / "stpa"
+    / "threat_enum"
+    / "prompts"
 )
 SYSTEM_PROMPT_TEMPLATE = PROMPTS_DIR / "stage3_system.j2"
 USER_PROMPT_TEMPLATE = PROMPTS_DIR / "stage3_user.j2"
@@ -385,7 +390,9 @@ def _build_minimal_fixtures():
         LossProvenance,
         SecurityConstraint,
     )
-    from asago_scenario_generator.stpa.threat_enum._constants import PROMPTS_DIR as prompts
+    from asago_scenario_generator.stpa.threat_enum._constants import (
+        PROMPTS_DIR as prompts,
+    )
     from asago_scenario_generator.stpa.threat_enum.slot_creation import create_slots
 
     resp = Responsibility(
@@ -452,7 +459,9 @@ def run_dynamic_checks(runner: QARunner) -> None:
         from asago_scenario_generator.stpa.threat_enum.technology_context import (
             build_technology_context,
         )
-        from asago_scenario_generator.stpa.threat_enum.slot_filling import ICASlotFillResult
+        from asago_scenario_generator.stpa.threat_enum.slot_filling import (
+            ICASlotFillResult,
+        )
         from asago_scenario_generator.stpa.models.ica_enumeration import UCAType
         from asago_scenario_generator.models.capability_profile import (
             CapabilityProfile,

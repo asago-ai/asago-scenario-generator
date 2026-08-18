@@ -12,7 +12,10 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from asago_scenario_generator.models.attack_tree import ExternalPreconditionAction, GateType
+from asago_scenario_generator.models.attack_tree import (
+    ExternalPreconditionAction,
+    GateType,
+)
 from asago_scenario_generator.models.projection_envelope import (
     ProjectionTraceabilityStage,
     ProjectionTraceabilityViolationCode,
@@ -42,7 +45,9 @@ from asago_scenario_generator.pipeline.generate.gherkin import (
     _format_leaf_step_text,
     _leaf_step_kind,
 )
-from asago_scenario_generator.pipeline.projection import compute_authoritative_catalog_pin
+from asago_scenario_generator.pipeline.projection import (
+    compute_authoritative_catalog_pin,
+)
 from asago_scenario_generator.pipeline.projection_validation import (
     validate_projection_traceability,
 )

@@ -188,7 +188,7 @@ def test_bundled_mapping_set_digest_golden() -> None:
     """Golden pin: any change to the v1 framing or bundled content is explicit."""
     assert (
         compute_mapping_set_digest()
-        == "7c0f49feafa5c1ff15388aef58e45d30600a07b161e1ffa2c07200d6b6cb96f3"
+        == "15680b8778f51f30b1daf3ca2551437caebc3b8293c4b5e2ecf4d1b90756bfdc"
     )
 
 

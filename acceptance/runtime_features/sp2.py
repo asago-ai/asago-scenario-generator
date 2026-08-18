@@ -639,7 +639,9 @@ def _h_sp2_structural_check(
     world: World, text: str, examples: dict
 ) -> tuple[bool, str]:
     """Handle: the structural N/A quality check is run."""
-    from asago_scenario_generator.stpa.threat_enum.na_quality import check_structural_keywords
+    from asago_scenario_generator.stpa.threat_enum.na_quality import (
+        check_structural_keywords,
+    )
 
     if hasattr(world, "sp2_na_slot"):
         world.sp2_structural_pass = check_structural_keywords(
@@ -945,7 +947,9 @@ def _h_sp2_na_reconciliation(
     world: World, text: str, examples: dict
 ) -> tuple[bool, str]:
     """Handle: N/A reconciliation is performed."""
-    from asago_scenario_generator.stpa.threat_enum.catalog_enrichment import reconcile_na_slots
+    from asago_scenario_generator.stpa.threat_enum.catalog_enrichment import (
+        reconcile_na_slots,
+    )
 
     cs = ControlStructure(
         responsibilities=[
@@ -1045,7 +1049,9 @@ def _h_sp2_coverage_computed(
     world: World, text: str, examples: dict
 ) -> tuple[bool, str]:
     """Handle: coverage analysis is computed."""
-    from asago_scenario_generator.stpa.threat_enum.catalog_enrichment import enrich_threats
+    from asago_scenario_generator.stpa.threat_enum.catalog_enrichment import (
+        enrich_threats,
+    )
 
     cs = ControlStructure(
         responsibilities=[
@@ -1587,7 +1593,9 @@ def _h_sp2_catalog_and_coverage(
     world: World, text: str, examples: dict
 ) -> tuple[bool, str]:
     """Handle: catalog enrichment and coverage analysis are computed."""
-    from asago_scenario_generator.stpa.threat_enum.catalog_enrichment import enrich_threats
+    from asago_scenario_generator.stpa.threat_enum.catalog_enrichment import (
+        enrich_threats,
+    )
 
     cs = ControlStructure(
         responsibilities=[
@@ -2617,7 +2625,9 @@ def _h_sp2_ica_full(world: World, text: str, examples: dict) -> tuple[bool, str]
 
 def _h_sp2_ica_merge(world: World, text: str, examples: dict) -> tuple[bool, str]:
     """Handle: filled slots are merged with their placeholders."""
-    from asago_scenario_generator.stpa.threat_enum.slot_filling import _merge_filled_slots
+    from asago_scenario_generator.stpa.threat_enum.slot_filling import (
+        _merge_filled_slots,
+    )
 
     world.ica_enumeration = ICAEnumeration(
         slots=_merge_filled_slots(world.ica_slots, world.ica_fills)

@@ -20,7 +20,11 @@ from asago_scenario_generator.models.capability_profile import (
     CapabilityProfile,
     is_attacker_accessible_ingress,
 )
-from asago_scenario_generator.models.scenario import ActorProfile, CallName, NarrativeLayer
+from asago_scenario_generator.models.scenario import (
+    ActorProfile,
+    CallName,
+    NarrativeLayer,
+)
 from asago_scenario_generator.pipeline.generate.constants import (
     _STEP_NODE_CORRESPONDENCE_FLOOR,
     compute_leaf_budget,
@@ -681,7 +685,9 @@ def build_call2_context(
         if profile is not None and len(entry_points) == 1:
             active_zones = set(profile.zones_active) if profile.zones_active else set()
             if not is_attacker_accessible_ingress(entry_points[0], active_zones):
-                from asago_scenario_generator.pipeline.generate.assembly import GenerationError
+                from asago_scenario_generator.pipeline.generate.assembly import (
+                    GenerationError,
+                )
 
                 raise GenerationError(
                     f"Pinned entry point '{pinned_entry_point_id}' "
@@ -872,7 +878,9 @@ def _call_attack_tree_once(
             response_format=None,
         )
     except Exception as exc:
-        from asago_scenario_generator.pipeline.generate.stages import StageAttemptFailure
+        from asago_scenario_generator.pipeline.generate.stages import (
+            StageAttemptFailure,
+        )
 
         raise StageAttemptFailure(
             call_name=CallName.attack_tree,
@@ -888,7 +896,9 @@ def _call_attack_tree_once(
             tree, profile, pinned_entry_point_id, skeleton, seed, projection_context
         )
     except Exception as exc:
-        from asago_scenario_generator.pipeline.generate.stages import StageAttemptFailure
+        from asago_scenario_generator.pipeline.generate.stages import (
+            StageAttemptFailure,
+        )
 
         raise StageAttemptFailure(
             call_name=CallName.attack_tree,

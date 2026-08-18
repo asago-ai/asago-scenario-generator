@@ -1091,7 +1091,9 @@ def _h_crf_revision_max_tokens(
     if not m:
         return False, f"Could not parse expected value from: {text}"
     expected = int(m.group(1))
-    from asago_scenario_generator.stpa.system_model.critic import REVISION_MAX_COMPLETION_TOKENS
+    from asago_scenario_generator.stpa.system_model.critic import (
+        REVISION_MAX_COMPLETION_TOKENS,
+    )
 
     if REVISION_MAX_COMPLETION_TOKENS != expected:
         return (

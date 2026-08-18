@@ -13,7 +13,10 @@ from pathlib import Path
 from asago_scenario_generator.stpa.infra.llm import LLMClient
 from asago_scenario_generator.stpa.infra.llm_helpers import safe_llm_call_raw
 from asago_scenario_generator.stpa.infra.templates import TemplateLoader
-from asago_scenario_generator.stpa.models.loss_analysis import LossAnalysis, SecurityConstraint
+from asago_scenario_generator.stpa.models.loss_analysis import (
+    LossAnalysis,
+    SecurityConstraint,
+)
 from asago_scenario_generator.stpa.models.scenario_envelope import GherkinSpec
 from asago_scenario_generator.stpa.models.scenario_spec import ScenarioSpec
 

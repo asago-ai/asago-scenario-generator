@@ -42,9 +42,13 @@ class LLMClient:
         extra_headers: dict[str, str] | None = None,
     ) -> None:
         self.base_url = (
-            base_url or os.environ.get("ASAGO_SCENARIO_GENERATOR_MODEL_BASE_URL") or None
+            base_url
+            or os.environ.get("ASAGO_SCENARIO_GENERATOR_MODEL_BASE_URL")
+            or None
         )
-        self.api_key = api_key or os.environ.get("ASAGO_SCENARIO_GENERATOR_API_KEY", "unused")
+        self.api_key = api_key or os.environ.get(
+            "ASAGO_SCENARIO_GENERATOR_API_KEY", "unused"
+        )
         self.model = model or os.environ.get(
             "ASAGO_SCENARIO_GENERATOR_MODEL_NAME", "gemma-3n-e4b-it"
         )

@@ -57,7 +57,9 @@ def _resolve_api_key(explicit: str | None) -> str:
 
 def _resolve_model(explicit: str | None) -> str:
     """Resolve model name from explicit arg or environment."""
-    return explicit or os.environ.get("ASAGO_SCENARIO_GENERATOR_MODEL_NAME", "gemma-3n-e4b-it")
+    return explicit or os.environ.get(
+        "ASAGO_SCENARIO_GENERATOR_MODEL_NAME", "gemma-3n-e4b-it"
+    )
 
 
 def _resolve_extra_headers(

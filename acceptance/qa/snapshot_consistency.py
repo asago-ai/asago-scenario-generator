@@ -74,7 +74,12 @@ from qa_harness import (  # noqa: E402
 # ---------------------------------------------------------------------------
 
 PROMPTS_DIR = (
-    PROJECT_ROOT / "src" / "asago_scenario_generator" / "stpa" / "system_model" / "prompts"
+    PROJECT_ROOT
+    / "src"
+    / "asago_scenario_generator"
+    / "stpa"
+    / "system_model"
+    / "prompts"
 )
 LEGACY_FEATURES_DIR = PROJECT_ROOT / "tests" / "stpa" / "features"
 REFRESH_FEATURES_DIR = PROJECT_ROOT / "features" / "acceptance-refresh"

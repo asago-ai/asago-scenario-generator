@@ -970,7 +970,9 @@ def _h_enrichment_html_report_generated(
     world: World, text: str, examples: dict
 ) -> tuple[bool, str]:
     """Handle: the STPA HTML report is generated."""
-    from asago_scenario_generator.stpa.report.template import _build_scenario_envelope_body
+    from asago_scenario_generator.stpa.report.template import (
+        _build_scenario_envelope_body,
+    )
 
     if world.envelope is None:
         return False, "No envelope to generate report from"

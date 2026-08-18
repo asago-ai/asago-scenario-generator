@@ -62,7 +62,12 @@ from qa_harness import (  # noqa: E402
 # ---------------------------------------------------------------------------
 
 PROMPTS_DIR = (
-    PROJECT_ROOT / "src" / "asago_scenario_generator" / "stpa" / "system_model" / "prompts"
+    PROJECT_ROOT
+    / "src"
+    / "asago_scenario_generator"
+    / "stpa"
+    / "system_model"
+    / "prompts"
 )
 
 # Expected Stage 2 call-log steps (new decomposition)

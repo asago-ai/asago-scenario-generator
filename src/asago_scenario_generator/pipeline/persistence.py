@@ -49,7 +49,9 @@ from asago_scenario_generator.pipeline.finalization import (
     LifecycleTransition,
     StageInvocation,
 )
-from asago_scenario_generator.pipeline.finalization_admission import PostbehaviorAdmissionReport
+from asago_scenario_generator.pipeline.finalization_admission import (
+    PostbehaviorAdmissionReport,
+)
 from asago_scenario_generator.pipeline.finalization_gates import (
     CONDITIONALLY_APPLICABLE_EVIDENCE_IDS,
     DIAGNOSTIC_BACKED_EVIDENCE_IDS,

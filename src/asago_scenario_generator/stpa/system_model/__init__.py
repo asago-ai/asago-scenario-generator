@@ -27,7 +27,9 @@ from asago_scenario_generator.stpa.system_model.heuristics import (  # noqa: E40
     check_solution_neutrality,
     run_heuristics,
 )
-from asago_scenario_generator.stpa.system_model.loss_analysis import derive_loss_analysis  # noqa: E402
+from asago_scenario_generator.stpa.system_model.loss_analysis import (
+    derive_loss_analysis,
+)  # noqa: E402
 from asago_scenario_generator.stpa.system_model.profile import derive_capability_profile  # noqa: E402
 from asago_scenario_generator.stpa.system_model.run import SP1RunResult, run_sp1  # noqa: E402
 

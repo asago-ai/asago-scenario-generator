@@ -479,7 +479,9 @@ def build_call3_context(
                 )
 
     # Humanize projection context for the template (Phase 3)
-    from asago_scenario_generator.pipeline.generate.names import humanize_projection_context
+    from asago_scenario_generator.pipeline.generate.names import (
+        humanize_projection_context,
+    )
 
     humanized_projection = (
         humanize_projection_context(projection_context, profile)

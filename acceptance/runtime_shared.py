@@ -58,10 +58,18 @@ from asago_scenario_generator.stpa.models.scenario_spec import (
 )
 from asago_scenario_generator.stpa.models.scenario_envelope import ScenarioEnvelope
 from asago_scenario_generator.stpa.infra.llm import LLMClient, LLMResult
-from asago_scenario_generator.stpa.system_model.critic import strip_empty_responsibilities
-from asago_scenario_generator.stpa.infra.call_log import make_call_log_entry, append_call_log
+from asago_scenario_generator.stpa.system_model.critic import (
+    strip_empty_responsibilities,
+)
+from asago_scenario_generator.stpa.infra.call_log import (
+    make_call_log_entry,
+    append_call_log,
+)
 from asago_scenario_generator.stpa.infra.yaml_io import write_yaml, read_yaml
-from asago_scenario_generator.stpa.infra.templates import TemplateLoader, hash_prompt_templates
+from asago_scenario_generator.stpa.infra.templates import (
+    TemplateLoader,
+    hash_prompt_templates,
+)
 from asago_scenario_generator.stpa.infra.manifest import STPARunManifest
 from pydantic import BaseModel, ValidationError
 from asago_scenario_generator.stpa.models.scenario_envelope import GherkinSpec
@@ -134,10 +142,14 @@ from asago_scenario_generator.stpa.infra.yaml_io import (
     write_yaml as _sp1_write_yaml,
     read_yaml as _sp1_read_yaml,
 )
-from asago_scenario_generator.stpa.infra.llm_helpers import log_llm_call as _sp1_log_llm_call
+from asago_scenario_generator.stpa.infra.llm_helpers import (
+    log_llm_call as _sp1_log_llm_call,
+)
 import tempfile as _tempfile
 import hashlib as _hashlib
-from asago_scenario_generator.stpa.infra.llm_helpers import safe_llm_call as _gd_safe_llm_call
+from asago_scenario_generator.stpa.infra.llm_helpers import (
+    safe_llm_call as _gd_safe_llm_call,
+)
 from asago_scenario_generator.stpa.infra.llm_helpers import StageError as _GDStageError
 from asago_scenario_generator.stpa.system_model.loss_analysis import (
     derive_loss_analysis as _gd_derive_loss_analysis,
@@ -157,13 +169,19 @@ from asago_scenario_generator.stpa.system_model.critic import (
     run_revision as _gd_run_revision,
     CriticFindings as _GDCriticFindings,
 )
-from asago_scenario_generator.stpa.system_model.run import SP1RunResult as _GDSP1RunResult
+from asago_scenario_generator.stpa.system_model.run import (
+    SP1RunResult as _GDSP1RunResult,
+)
 import yaml as _gd_yaml
 import yaml as _yaml_mp
 import tempfile as _tempfile_mp
 import subprocess as _subprocess_mp
-from asago_scenario_generator.stpa.infra.model_profiles import load_profile as _load_profile
-from asago_scenario_generator.stpa.infra.calls_html import render_calls_html as _render_calls_html
+from asago_scenario_generator.stpa.infra.model_profiles import (
+    load_profile as _load_profile,
+)
+from asago_scenario_generator.stpa.infra.calls_html import (
+    render_calls_html as _render_calls_html,
+)
 from asago_scenario_generator.stpa.infra.llm_helpers import (
     log_llm_call as _fc_log_llm_call,
     log_llm_call_failure as _fc_log_llm_call_failure,
@@ -178,11 +196,15 @@ from asago_scenario_generator.stpa.system_model.control_structure import (
     ResponsibilitySet as _FCResponsibilitySet,
     ControlElementSet as _FCControlElementSet,
 )
-from asago_scenario_generator.stpa.system_model._constants import PROMPTS_DIR as _FC_PROMPTS_DIR
+from asago_scenario_generator.stpa.system_model._constants import (
+    PROMPTS_DIR as _FC_PROMPTS_DIR,
+)
 import inspect as _bf2_inspect
 import logging as _bf2_logging
 import tempfile as _bf2_tempfile
-from asago_scenario_generator.stpa.infra.llm_helpers import safe_llm_call as _bf2_safe_llm_call
+from asago_scenario_generator.stpa.infra.llm_helpers import (
+    safe_llm_call as _bf2_safe_llm_call,
+)
 from asago_scenario_generator.stpa.system_model.control_structure import (
     derive_control_structure as _bf2_derive_control_structure,
     _call_2a_responsibilities as _bf2_call_2_resp,
@@ -1602,7 +1624,12 @@ def _sp1_invalid_connectionset_bad_link_pm() -> dict:
 
 
 _PQF_PROMPTS_DIR = (
-    PROJECT_ROOT / "src" / "asago_scenario_generator" / "stpa" / "system_model" / "prompts"
+    PROJECT_ROOT
+    / "src"
+    / "asago_scenario_generator"
+    / "stpa"
+    / "system_model"
+    / "prompts"
 )
 
 
@@ -1922,7 +1949,9 @@ def _make_sp2_control_structure(
     n_coord_links: int = 1,
 ) -> ControlStructure:
     """Build a control structure for SP2 acceptance tests."""
-    from asago_scenario_generator.stpa.models.control_structure import ControlledProcess as _CP
+    from asago_scenario_generator.stpa.models.control_structure import (
+        ControlledProcess as _CP,
+    )
 
     cps = [
         _CP(cp_id=f"CP-{i + 1}", description=f"Process {i + 1}")
@@ -2217,7 +2246,9 @@ def _make_sp3_envelope(
     gherkin_spec: GherkinSpec | str | None = None,
 ) -> ScenarioEnvelope:
     """Build a scenario envelope for SP3 acceptance tests."""
-    from asago_scenario_generator.stpa.models.scenario_envelope import GherkinSpec as _GS
+    from asago_scenario_generator.stpa.models.scenario_envelope import (
+        GherkinSpec as _GS,
+    )
 
     s = spec or _make_sp3_scenario_spec()
     tree = attack_tree or {
@@ -2263,7 +2294,9 @@ def _make_sp3_envelope(
 def _setup_sp3_mock_client(num_threats: int = 2):
     """Set up a mock LLM client with valid SP3 responses."""
     from tests.stpa.sp1_helpers import MockLLMClient
-    from asago_scenario_generator.stpa.scenario_prod.bdi_generation import BDIGenerationResult
+    from asago_scenario_generator.stpa.scenario_prod.bdi_generation import (
+        BDIGenerationResult,
+    )
     import json
 
     client = MockLLMClient()
@@ -2342,7 +2375,9 @@ def _h_sp3_validate_against_cs(
     world: World, text: str, examples: dict
 ) -> tuple[bool, str]:
     """Handle: the scenario spec is validated against the control structure."""
-    from asago_scenario_generator.stpa.scenario_prod.validators import validate_bdi_grounding
+    from asago_scenario_generator.stpa.scenario_prod.validators import (
+        validate_bdi_grounding,
+    )
 
     if world.scenario_spec is None:
         world.scenario_spec = _make_sp3_scenario_spec()
@@ -2358,7 +2393,9 @@ def _h_sp3_validate_against_cs(
 
 
 def compute_eval_scorecard_simple(world):
-    from asago_scenario_generator.stpa.scenario_prod.eval_metrics import compute_eval_scorecard
+    from asago_scenario_generator.stpa.scenario_prod.eval_metrics import (
+        compute_eval_scorecard,
+    )
 
     envs = getattr(world, "sp3_envelopes", [])
     if world.enriched_threat_set is None:

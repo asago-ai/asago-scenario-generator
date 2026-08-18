@@ -815,7 +815,9 @@ def _h_cs_duplicate(world: World, text: str, examples: dict) -> tuple[bool, str]
             ],
         )
     elif id_field == "cp_id":
-        from asago_scenario_generator.stpa.models.control_structure import ControlledProcess
+        from asago_scenario_generator.stpa.models.control_structure import (
+            ControlledProcess,
+        )
 
         world.control_structure = ControlStructure(
             responsibilities=[

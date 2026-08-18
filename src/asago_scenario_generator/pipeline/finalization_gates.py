@@ -40,12 +40,17 @@ from asago_scenario_generator.pipeline.finalization import (
     LifecycleViolation,
     PrebehaviorFinalizationResult,
 )
-from asago_scenario_generator.pipeline.generate.actor import validate_actor_access_provenance
+from asago_scenario_generator.pipeline.generate.actor import (
+    validate_actor_access_provenance,
+)
 from asago_scenario_generator.pipeline.generate.constants import compute_leaf_budget
 from asago_scenario_generator.pipeline.generate.narrative import (
     validate_narrative_access_realization,
 )
-from asago_scenario_generator.pipeline.projection import ProjectedCandidate, canonical_json_bytes
+from asago_scenario_generator.pipeline.projection import (
+    ProjectedCandidate,
+    canonical_json_bytes,
+)
 from asago_scenario_generator.pipeline.projection_validation import (
     _check_narrative_realizations,
     _check_or_tree_prohibition,
@@ -406,7 +411,9 @@ def _block(
     # This is the same authoritative derivation used by ordinary envelope
     # assembly.  Passing behavior=None deliberately limits the sidecars to
     # the artifacts that exist before Call 3.
-    from asago_scenario_generator.pipeline.generate.assembly import _build_projection_block
+    from asago_scenario_generator.pipeline.generate.assembly import (
+        _build_projection_block,
+    )
 
     return _build_projection_block(
         candidate, narrative, tree, None, capability_snapshot

@@ -4114,7 +4114,9 @@ def _h_bf2_capability_profile_with_zones(
         if "KC4.3" not in kc_subcodes:
             kc_subcodes.append("KCX-PMEM")
 
-    from asago_scenario_generator.models.capability_profile import CapabilityProfile as _CP
+    from asago_scenario_generator.models.capability_profile import (
+        CapabilityProfile as _CP,
+    )
 
     profile_kwargs: dict = {
         "zones_active": zones_active,
@@ -4344,7 +4346,9 @@ def _h_bf2_template_rendered_with_vars_profile(
     ]
     profile = world.sp1_profile
     if profile is None:
-        from asago_scenario_generator.models.capability_profile import CapabilityProfile as _CP
+        from asago_scenario_generator.models.capability_profile import (
+            CapabilityProfile as _CP,
+        )
 
         profile = _CP(
             zones_active=["input", "reasoning"],
@@ -4801,7 +4805,9 @@ def _h_bf2_revision_run_with_log_capture(
     handler on the critic logger before running, so that duplicate
     rejection warnings (logged via logger.warning) can be checked.
     """
-    critic_logger = _bf2_logging.getLogger("asago_scenario_generator.stpa.system_model.critic")
+    critic_logger = _bf2_logging.getLogger(
+        "asago_scenario_generator.stpa.system_model.critic"
+    )
     capture = _BF2LogCapture()
     capture.setLevel(_bf2_logging.WARNING)
     critic_logger.addHandler(capture)
@@ -4833,9 +4839,11 @@ def _h_b3_cs_module_importable(
 ) -> tuple[bool, str]:
     """Handle: the STPA system model control structure module is importable."""
     try:
-        from asago_scenario_generator.stpa.system_model import control_structure as _cs_mod  # noqa: F401
+        from asago_scenario_generator.stpa.system_model import (
+            control_structure as _cs_mod,
+        )
 
-        return True, ""
+        return _cs_mod.__name__.endswith(".control_structure"), ""
     except ImportError as e:
         return False, f"Cannot import control structure module: {e}"
 

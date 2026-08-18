@@ -11,13 +11,13 @@ release:
     source records: closed-vocabulary dispositions, overlap-group resolutions, and resulting
     authoritative pattern boundaries with exact ATLAS mappings for the deterministic chain-authoring
     waves. Revised with typed AP-T6-07 resource and activation-topology constraints.'
-  semantic_digest: 3702a2f8eae3a78fe37587238c60bc2e999d064ba2297574eebfdde0b19ba443
+  semantic_digest: bc3b20c4987b324a2e872d82719143157422c262342cd13cdc2a9656fd065a93
 taxonomy_context:
   atlas:
     release: '2026.05'
     digest: defd9014c6d5f5954460ef438faea583fcb1830ff81e85709628efb43037cc3a
   laaf: null
-  mapping_set_digest: 7c0f49feafa5c1ff15388aef58e45d30600a07b161e1ffa2c07200d6b6cb96f3
+  mapping_set_digest: 15680b8778f51f30b1daf3ca2551437caebc3b8293c4b5e2ecf4d1b90756bfdc
 source_catalog_context:
   source_git_revision: 3af41929698c40f06ad4a286668167ef5bf084f0
   canonicalization: asago-scenario-generator:attack-pattern-records:v1
@@ -29,7 +29,7 @@ source_catalog_context:
   - attack-patterns-memory-tool.yaml
   - attack-patterns.yaml
   record_count: 71
-  digest: 9e079b047aeaf13e1546fe6c1af2ec1e0922d7c406928989580f7302d1fbfa93
+  digest: 1867079decd9d132b89625d62ae22353a6be9ea69fbdf755c7462ed816ed3fb4
 disposition_vocabulary:
   retain: 'The source record is operationally sound as authored: one mechanism, defensible
     exact ATLAS chain and attacker-step mappings, and evidence honest enough to carry into

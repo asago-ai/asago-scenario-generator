@@ -50,7 +50,9 @@ def _h_ar_coordination_analysis(
 
 
 def _h_ar_call3_run(world: World, text: str, examples: dict) -> tuple[bool, str]:
-    from asago_scenario_generator.stpa.system_model.control_structure import _call_3_coordination
+    from asago_scenario_generator.stpa.system_model.control_structure import (
+        _call_3_coordination,
+    )
 
     _ar_stage2_defaults(world)
     run_dir = _ar_run_dir(world)

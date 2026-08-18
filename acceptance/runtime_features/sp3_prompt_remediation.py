@@ -31,7 +31,9 @@ from asago_scenario_generator.stpa.scenario_prod.narrative import (
     build_narrative_prompts,
     generate_narrative,
 )
-from asago_scenario_generator.stpa.threat_enum.technology_context import build_technology_context
+from asago_scenario_generator.stpa.threat_enum.technology_context import (
+    build_technology_context,
+)
 
 
 _BRIDGE = (
@@ -458,7 +460,9 @@ def _h_aat_llm(world: World, text: str, examples: dict) -> tuple[bool, str]:
 
 def _h_aat_tree(world: World, text: str, examples: dict) -> tuple[bool, str]:
     """Run the attack-tree prompt against the deterministic mock."""
-    from asago_scenario_generator.stpa.scenario_prod.attack_tree import generate_attack_tree
+    from asago_scenario_generator.stpa.scenario_prod.attack_tree import (
+        generate_attack_tree,
+    )
 
     if not hasattr(world, "sp3_llm_client"):
         _h_aat_llm(world, text, examples)

@@ -788,7 +788,9 @@ def validate_phantom_capabilities(
                         )
 
         # Also check Gherkin behavior_spec text
-        from asago_scenario_generator.models.scenario import BehaviorSpec as _BehaviorSpec
+        from asago_scenario_generator.models.scenario import (
+            BehaviorSpec as _BehaviorSpec,
+        )
 
         gherkin_text_for_phantom = ""
         if scenario.behavior_spec and isinstance(scenario.behavior_spec, _BehaviorSpec):
@@ -2506,7 +2508,9 @@ def validate_gate_logic_consistency(
             continue
 
         # Tree has OR gates -- check that Gherkin has multiple Scenario blocks.
-        from asago_scenario_generator.models.scenario import BehaviorSpec as _BehaviorSpec
+        from asago_scenario_generator.models.scenario import (
+            BehaviorSpec as _BehaviorSpec,
+        )
 
         gherkin = ""
         if scenario.behavior_spec and isinstance(scenario.behavior_spec, _BehaviorSpec):

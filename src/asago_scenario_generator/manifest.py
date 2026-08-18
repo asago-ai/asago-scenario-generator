@@ -1254,7 +1254,9 @@ class ManifestInventoryResolver:
                     )
 
             # Keep v3-only policy out of current production v2 reads.
-            from asago_scenario_generator.pipeline.persistence import validate_v3_inventories
+            from asago_scenario_generator.pipeline.persistence import (
+                validate_v3_inventories,
+            )
 
             validate_v3_inventories(self)
             _validate_v3_scorecard_binding(self.manifest, self)

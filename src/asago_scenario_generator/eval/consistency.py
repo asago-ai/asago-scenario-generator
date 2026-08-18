@@ -11,7 +11,10 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from asago_scenario_generator.models.capability_profile import ZONE_DISPLAY_NAMES, ZONE_NAMES
+from asago_scenario_generator.models.capability_profile import (
+    ZONE_DISPLAY_NAMES,
+    ZONE_NAMES,
+)
 
 
 def _jaccard(a: set, b: set) -> float:

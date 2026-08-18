@@ -12,9 +12,14 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
-from asago_scenario_generator.stpa.infra.call_log import append_call_log, make_call_log_entry
+from asago_scenario_generator.stpa.infra.call_log import (
+    append_call_log,
+    make_call_log_entry,
+)
 from asago_scenario_generator.stpa.infra.llm import LLMClient, LLMResult
-from asago_scenario_generator.stpa.infra.unvalidated_decode import construct_model_unvalidated
+from asago_scenario_generator.stpa.infra.unvalidated_decode import (
+    construct_model_unvalidated,
+)
 
 _T = TypeVar("_T", bound=BaseModel)
 

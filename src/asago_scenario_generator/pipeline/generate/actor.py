@@ -30,7 +30,9 @@ from asago_scenario_generator.pipeline.generate.constants import (
     ALL_ACTOR_TYPES,
     CHAIN_TECHNIQUE_PAIRS,
 )
-from asago_scenario_generator.pipeline.generate.goals import _build_attack_goal_context_block
+from asago_scenario_generator.pipeline.generate.goals import (
+    _build_attack_goal_context_block,
+)
 from asago_scenario_generator.pipeline.generate.ontology import (
     _build_ontology_context,
     _build_technique_context_block,
@@ -1035,7 +1037,9 @@ def build_call0_context(
                 )
 
     # Humanize projection context for the template (Phase 3)
-    from asago_scenario_generator.pipeline.generate.names import humanize_projection_context
+    from asago_scenario_generator.pipeline.generate.names import (
+        humanize_projection_context,
+    )
 
     humanized_projection = (
         humanize_projection_context(projection_context, profile)

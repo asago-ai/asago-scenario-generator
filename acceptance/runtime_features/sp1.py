@@ -1014,7 +1014,9 @@ def _h_ing_eff_none(world: World, text: str, examples: dict) -> tuple[bool, str]
 
 def _h_ing_no_access(world: World, text: str, examples: dict) -> tuple[bool, str]:
     """Handle the attacker-accessible ingress assertion."""
-    from asago_scenario_generator.models.capability_profile import is_attacker_accessible_ingress
+    from asago_scenario_generator.models.capability_profile import (
+        is_attacker_accessible_ingress,
+    )
 
     ep = _ing_result(world)
     if ep is None:

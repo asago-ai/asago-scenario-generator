@@ -44,14 +44,14 @@ from asago_scenario_generator.data.taxonomy_pins import load_taxonomy_resolver
 
 AP_DIR = _DEFAULT_LINEAGE_PATH.parent
 
-GOLDEN_DIGEST = "3702a2f8eae3a78fe37587238c60bc2e999d064ba2297574eebfdde0b19ba443"
+GOLDEN_DIGEST = "bc3b20c4987b324a2e872d82719143157422c262342cd13cdc2a9656fd065a93"
 # The historical source snapshot: the authoritative original catalog
 # revision the decisions were made against, and the content digest of its
 # 71 canonicalized loader records.  Golden so the durable pin can never
 # drift silently.
 GOLDEN_SOURCE_REVISION = "3af41929698c40f06ad4a286668167ef5bf084f0"
 GOLDEN_SOURCE_DIGEST = (
-    "9e079b047aeaf13e1546fe6c1af2ec1e0922d7c406928989580f7302d1fbfa93"
+    "1867079decd9d132b89625d62ae22353a6be9ea69fbdf755c7462ed816ed3fb4"
 )
 
 # Tokens that would indicate an unfinished decision.  Final language such as

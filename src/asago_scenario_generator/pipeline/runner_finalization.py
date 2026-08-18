@@ -42,8 +42,12 @@ from asago_scenario_generator.pipeline.finalization import (
     TargetFinalizationMachine,
     make_assertions_only_behavior_callback,
 )
-from asago_scenario_generator.pipeline.finalization_admission import make_postbehavior_admission
-from asago_scenario_generator.pipeline.finalization_gates import make_prebehavior_finalizer
+from asago_scenario_generator.pipeline.finalization_admission import (
+    make_postbehavior_admission,
+)
+from asago_scenario_generator.pipeline.finalization_gates import (
+    make_prebehavior_finalizer,
+)
 from asago_scenario_generator.pipeline.generate.stages import (
     GenerationRequest,
     RetryDirective,

@@ -16,7 +16,10 @@ from asago_scenario_generator.stpa.models.control_structure import (
     ControlStructure,
     Responsibility,
 )
-from asago_scenario_generator.stpa.models.scenario_envelope import ConsumerHints, SystemContext
+from asago_scenario_generator.stpa.models.scenario_envelope import (
+    ConsumerHints,
+    SystemContext,
+)
 from asago_scenario_generator.stpa.models.scenario_spec import ScenarioSpec
 
 __all__ = ["compute_consumer_hints", "compute_system_context"]

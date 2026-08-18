@@ -40,7 +40,10 @@ from asago_scenario_generator.models.attack_pattern import (
     StateChangingToolFixtureRequirement,
     UpstreamSourceInfluenceRequirement,
 )
-from asago_scenario_generator.models.attack_tree import AttackTreeNode, ExternalPreconditionAction
+from asago_scenario_generator.models.attack_tree import (
+    AttackTreeNode,
+    ExternalPreconditionAction,
+)
 from asago_scenario_generator.models.complexity import (
     COMPLEXITY_RULE_TABLE,
     COMPLEXITY_RULE_VERSION,

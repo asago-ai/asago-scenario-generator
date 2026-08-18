@@ -28,8 +28,8 @@ from asago_scenario_generator.models.attack_pattern import (
 
 ZERO = "0" * 64
 ONE = "1" * 64
-CHAIN_GOLDEN = "1e30e54bcc60a25e52509c957584212f33bd8faa3fa3bbc527e04053ed5542b0"
-PROJECTION_GOLDEN = "2dbd2eeb9649053ba1c1396113e3e70da46c4e45aaf28e5b4f09f86cbdbc8a5a"
+CHAIN_GOLDEN = "c7d23d8a6aaf6e4c39e71fcf71257f586ee77c758e3e1097c462433d163f4bde"
+PROJECTION_GOLDEN = "4148dfe2b5f4f7cf30f152c79b8fafce3e5ddc056775a27ae0f53f37f1994960"
 REFS = {
     "entry_point": {"kind": "entry_point", "entry_point_id": "ep:v1:" + "1" * 32},
     "tool": {"kind": "tool", "tool_id": "tool:v1:" + "2" * 32},

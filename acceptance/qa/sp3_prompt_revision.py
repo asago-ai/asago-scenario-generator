@@ -57,7 +57,12 @@ from qa_harness import (  # noqa: E402
 # ---------------------------------------------------------------------------
 
 PROMPTS_DIR = (
-    PROJECT_ROOT / "src" / "asago_scenario_generator" / "stpa" / "scenario_prod" / "prompts"
+    PROJECT_ROOT
+    / "src"
+    / "asago_scenario_generator"
+    / "stpa"
+    / "scenario_prod"
+    / "prompts"
 )
 STAGE5_SYSTEM = PROMPTS_DIR / "stage5_system.j2"
 STAGE5_USER = PROMPTS_DIR / "stage5_user.j2"
@@ -803,7 +808,9 @@ def run_pipeline_checks(runner: QARunner) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description=("QA suite for SP3 prompt revision (bead asago-scenario-generator-072o)"),
+        description=(
+            "QA suite for SP3 prompt revision (bead asago-scenario-generator-072o)"
+        ),
     )
     parser.add_argument(
         "--static", action="store_true", help="Run static source-text checks only"

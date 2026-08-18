@@ -20,7 +20,9 @@ from asago_scenario_generator.models.scenario import (
     NarrativeStep,
 )
 from asago_scenario_generator.pipeline.generate.constants import _OWASP_LLM_NAMES
-from asago_scenario_generator.pipeline.generate.diversity import _format_structural_exclusions
+from asago_scenario_generator.pipeline.generate.diversity import (
+    _format_structural_exclusions,
+)
 from asago_scenario_generator.pipeline.generate.ontology import (
     _build_ontology_context,
     _build_technique_context_block,
@@ -551,7 +553,9 @@ def build_call1_context(
     )
 
     # Humanize projection context for the template (Phase 3)
-    from asago_scenario_generator.pipeline.generate.names import humanize_projection_context
+    from asago_scenario_generator.pipeline.generate.names import (
+        humanize_projection_context,
+    )
 
     humanized_projection = (
         humanize_projection_context(projection_context, profile)

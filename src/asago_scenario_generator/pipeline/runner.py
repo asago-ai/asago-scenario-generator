@@ -103,7 +103,10 @@ from asago_scenario_generator.pipeline.projection import (
     project_authoritative_candidates,
 )
 from asago_scenario_generator.pipeline.seeds import ScenarioSeed, expand_seeds
-from asago_scenario_generator.pipeline.threats import ThreatSurface, determine_threat_surface
+from asago_scenario_generator.pipeline.threats import (
+    ThreatSurface,
+    determine_threat_surface,
+)
 from asago_scenario_generator.prompts import hash_prompt_templates
 
 logger = logging.getLogger(__name__)
@@ -212,7 +215,9 @@ def _complete_v3_run(
     generation_notes: list[str],
 ) -> PipelineResult:
     """Run the single shared v3 coverage, eval, report, and manifest tail."""
-    from asago_scenario_generator.pipeline.persistence import read_finalization_inventory
+    from asago_scenario_generator.pipeline.persistence import (
+        read_finalization_inventory,
+    )
     from asago_scenario_generator.pipeline.runner_finalization import build_v3_inventory
 
     started_manifest = load_manifest(run_dir, requested_version=MANIFEST_VERSION)
@@ -550,7 +555,9 @@ def resume_pipeline(
         recover_finalization_journal,
         validate_planning_checkpoint,
     )
-    from asago_scenario_generator.pipeline.runner_finalization import run_target_finalization
+    from asago_scenario_generator.pipeline.runner_finalization import (
+        run_target_finalization,
+    )
 
     try:
         supplied = Path(run_dir).resolve(strict=True)
@@ -673,7 +680,9 @@ def resume_pipeline(
     trusted_catalog = list(load_attack_patterns().values())
     durable_plan = read_coverage_plan(supplied)
     validate_planning_checkpoint(planning, durable_plan)
-    from asago_scenario_generator.pipeline.coverage_planning import revalidate_qualified_candidate
+    from asago_scenario_generator.pipeline.coverage_planning import (
+        revalidate_qualified_candidate,
+    )
 
     try:
         for target in durable_plan.targets:
@@ -1742,7 +1751,9 @@ def run_pipeline(
                         status=RunStatus.STARTED,
                         run_id=run_id,
                         timestamp_start=timestamp_start,
-                        package_version=importlib.metadata.version("asago-scenario-generator"),
+                        package_version=importlib.metadata.version(
+                            "asago-scenario-generator"
+                        ),
                         provenance=Provenance(
                             run_id=run_id,
                             timestamp_start=timestamp_start,

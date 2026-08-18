@@ -407,7 +407,9 @@ def validate_catalog_qualification(
         typer.echo("Error: contract must be matrix, campaign, or report", err=True)
         raise typer.Exit(code=1)
     try:
-        from asago_scenario_generator.catalog_qualification import validate_persisted_contract
+        from asago_scenario_generator.catalog_qualification import (
+            validate_persisted_contract,
+        )
 
         validated = validate_persisted_contract(artifact, contract)  # type: ignore[arg-type]
         typer.echo(json.dumps(validated.model_dump(mode="json"), indent=2))

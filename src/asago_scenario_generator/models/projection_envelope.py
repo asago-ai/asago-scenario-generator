@@ -294,7 +294,9 @@ class ProjectionEnvelopeBlock(ProjectionModel):
         arbitrary requirements.  The derivation context digest binds
         projection_digest + pattern_id + ingress_controllability.
         """
-        from asago_scenario_generator.pipeline.projection import compute_derivation_context_digest
+        from asago_scenario_generator.pipeline.projection import (
+            compute_derivation_context_digest,
+        )
 
         expected = compute_derivation_context_digest(
             self.projection.projection_digest,

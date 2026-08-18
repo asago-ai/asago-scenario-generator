@@ -46,7 +46,9 @@ from asago_scenario_generator.stpa.system_model.heuristics import (
     check_solution_neutrality,
     run_heuristics,
 )
-from asago_scenario_generator.stpa.system_model.loss_analysis import derive_loss_analysis
+from asago_scenario_generator.stpa.system_model.loss_analysis import (
+    derive_loss_analysis,
+)
 from asago_scenario_generator.stpa.system_model.profile import (
     derive_capability_profile,
     load_capability_profile,

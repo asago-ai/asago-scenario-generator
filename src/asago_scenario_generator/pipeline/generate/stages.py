@@ -21,7 +21,9 @@ from asago_scenario_generator.models.scenario import (
     NarrativeLayer,
     ScenarioEnvelope,
 )
-from asago_scenario_generator.pipeline.generate.constants import _ADVERSARIAL_ONLY_THREATS
+from asago_scenario_generator.pipeline.generate.constants import (
+    _ADVERSARIAL_ONLY_THREATS,
+)
 from asago_scenario_generator.pipeline.projection import (
     CapabilityFactSnapshot,
     ProjectedCandidate,
@@ -410,7 +412,9 @@ def assemble_final_envelope(
 ) -> ScenarioEnvelope:
     """Assemble and traceability-check a final envelope without persistence."""
     import asago_scenario_generator.pipeline.generate as generate
-    from asago_scenario_generator.pipeline.generate.assembly import ProjectionTraceabilityError
+    from asago_scenario_generator.pipeline.generate.assembly import (
+        ProjectionTraceabilityError,
+    )
     from asago_scenario_generator.pipeline.projection_validation import (
         validate_projection_traceability,
     )

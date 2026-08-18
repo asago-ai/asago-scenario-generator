@@ -45,7 +45,7 @@ def test_live_matrix_preflight_reports_full_deterministic_readiness() -> None:
     assert report.catalog_denominator == 49
     assert (
         report.catalog_sha256
-        == "e94f343b31093f0bea773015b9970f95650364cec511e8b5554a7203c9c75a12"
+        == "fc825827d32ed17f3b11409171c9d368248c99510431856ead98e44248a084f2"
     )
     assert report.missing_pattern_ids == ()
     assert sum(len(item.projected_pattern_ids) for item in report.preflight) == 49
@@ -481,7 +481,8 @@ def test_completed_v3_campaign_with_nonempty_facts_qualifies_one_pattern(
         lambda: {record["id"]: record for record in records},
     )
     monkeypatch.setattr(
-        "asago_scenario_generator.catalog_qualification.load_taxonomy_resolver", lambda: taxonomy
+        "asago_scenario_generator.catalog_qualification.load_taxonomy_resolver",
+        lambda: taxonomy,
     )
     monkeypatch.setattr(
         "asago_scenario_generator.catalog_qualification.compute_authoritative_catalog_pin",

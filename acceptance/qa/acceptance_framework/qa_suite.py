@@ -52,7 +52,9 @@ JPKW_FALLBACK = (
     "JPKW-07-FALLBACK .feature file uses gherkin_raw when structured "
     "Gherkin is unavailable"
 )
-LIVE_MARKER = 'live LLM acceptance is enabled with ASAGO_SCENARIO_GENERATOR_QA_PIPELINE "1"'
+LIVE_MARKER = (
+    'live LLM acceptance is enabled with ASAGO_SCENARIO_GENERATOR_QA_PIPELINE "1"'
+)
 AFR_EXPECTED = (
     "AFR-01",
     "AFR-02",
@@ -82,7 +84,13 @@ def qa_afr_02(runner: QARunner) -> subprocess.CompletedProcess[str]:
         ASAGO_SCENARIO_GENERATOR_MODEL_BASE_URL="http://127.0.0.1:9/v1",
     )
     result = run_command(
-        ["env", "-u", "ASAGO_SCENARIO_GENERATOR_QA_PIPELINE", str(ACCEPTANCE_SH), "--test"],
+        [
+            "env",
+            "-u",
+            "ASAGO_SCENARIO_GENERATOR_QA_PIPELINE",
+            str(ACCEPTANCE_SH),
+            "--test",
+        ],
         env=env,
         timeout=1800,
     )

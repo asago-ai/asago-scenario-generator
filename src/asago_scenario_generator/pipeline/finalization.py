@@ -825,7 +825,9 @@ class AssertionsOnlyBehaviorPort:
         if invocation.final_tree_digest is None or invocation.artifacts.tree is None:
             raise ValueError("verified final-tree materialization is required")
 
-        from asago_scenario_generator.pipeline.generate.stages import generate_behavior_stage
+        from asago_scenario_generator.pipeline.generate.stages import (
+            generate_behavior_stage,
+        )
 
         result = generate_behavior_stage(
             self.prepared,

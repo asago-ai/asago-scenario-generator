@@ -212,7 +212,9 @@ def _check_projection_drift(
     # re-validate the snapshot's digest by re-serializing and checking
     # against the stored projection_digest.
     try:
-        from asago_scenario_generator.models.attack_pattern import compute_projection_digest
+        from asago_scenario_generator.models.attack_pattern import (
+            compute_projection_digest,
+        )
 
         recomputed = compute_projection_digest(block.projection)
         if recomputed != block.projection.projection_digest:

@@ -298,7 +298,9 @@ def _h_sp3_run_dir(world: World, text: str, examples: dict) -> tuple[bool, str]:
 def _h_sp3_llm_bdi_valid(world: World, text: str, examples: dict) -> tuple[bool, str]:
     """Handle: an LLM that returns defender vulnerabilities and valid attacker BDI."""
     from tests.stpa.sp1_helpers import MockLLMClient
-    from asago_scenario_generator.stpa.scenario_prod.bdi_generation import BDIGenerationResult
+    from asago_scenario_generator.stpa.scenario_prod.bdi_generation import (
+        BDIGenerationResult,
+    )
 
     client = MockLLMClient()
     if "altered" in text.lower():
@@ -354,7 +356,9 @@ def _h_sp3_llm_records_prompt(
 
 def _h_sp3_defender_bdi(world: World, text: str, examples: dict) -> tuple[bool, str]:
     """Handle: the defender BDI is pre-populated for RESP-1."""
-    from asago_scenario_generator.stpa.scenario_prod.bdi_generation import populate_defender_bdi
+    from asago_scenario_generator.stpa.scenario_prod.bdi_generation import (
+        populate_defender_bdi,
+    )
 
     if world.control_structure is None:
         world.control_structure = _make_sp3_cs()
@@ -1147,7 +1151,9 @@ def _h_sp3_narrative_call(world: World, text: str, examples: dict) -> tuple[bool
 
 def _h_sp3_tree_call(world: World, text: str, examples: dict) -> tuple[bool, str]:
     """Handle: the attack tree LLM call is executed."""
-    from asago_scenario_generator.stpa.scenario_prod.attack_tree import generate_attack_tree
+    from asago_scenario_generator.stpa.scenario_prod.attack_tree import (
+        generate_attack_tree,
+    )
     import json
 
     if world.scenario_spec is None:
@@ -1232,7 +1238,9 @@ def _h_sp3_tree_branch_validation(
     tree = getattr(world, "sp3_attack_tree", None)
     if tree is None:
         # Generate the tree first using the mock client
-        from asago_scenario_generator.stpa.scenario_prod.attack_tree import generate_attack_tree
+        from asago_scenario_generator.stpa.scenario_prod.attack_tree import (
+            generate_attack_tree,
+        )
 
         if world.scenario_spec is None:
             world.scenario_spec = _make_sp3_scenario_spec()
@@ -1265,12 +1273,16 @@ def _h_sp3_tree_id_validation(
     world: World, text: str, examples: dict
 ) -> tuple[bool, str]:
     """Handle: attack tree ID reference validation is performed against the control structure."""
-    from asago_scenario_generator.stpa.scenario_prod.validators import validate_tree_id_references
+    from asago_scenario_generator.stpa.scenario_prod.validators import (
+        validate_tree_id_references,
+    )
 
     tree = getattr(world, "sp3_attack_tree", None)
     if tree is None:
         # Generate the tree first using the mock client
-        from asago_scenario_generator.stpa.scenario_prod.attack_tree import generate_attack_tree
+        from asago_scenario_generator.stpa.scenario_prod.attack_tree import (
+            generate_attack_tree,
+        )
 
         if world.scenario_spec is None:
             world.scenario_spec = _make_sp3_scenario_spec()
@@ -1311,7 +1323,9 @@ def _h_sp3_gherkin_validation(
     world: World, text: str, examples: dict
 ) -> tuple[bool, str]:
     """Handle: Gherkin structure validation is performed."""
-    from asago_scenario_generator.stpa.scenario_prod.validators import validate_gherkin_structure
+    from asago_scenario_generator.stpa.scenario_prod.validators import (
+        validate_gherkin_structure,
+    )
 
     ghw = getattr(world, "sp3_gherkin", None)
     if ghw is None:
@@ -1800,7 +1814,9 @@ def _h_sp3_bdi_grounding_validation(
     world: World, text: str, examples: dict
 ) -> tuple[bool, str]:
     """Handle: BDI grounding validation is performed against the control structure."""
-    from asago_scenario_generator.stpa.scenario_prod.validators import validate_bdi_grounding
+    from asago_scenario_generator.stpa.scenario_prod.validators import (
+        validate_bdi_grounding,
+    )
 
     if world.scenario_spec is None:
         world.scenario_spec = _make_sp3_scenario_spec()
@@ -1864,7 +1880,9 @@ def _h_sp3_traceability_validation(
     world: World, text: str, examples: dict
 ) -> tuple[bool, str]:
     """Handle: end-to-end traceability validation is performed or scenario setup for traceability."""
-    from asago_scenario_generator.stpa.scenario_prod.validators import validate_traceability
+    from asago_scenario_generator.stpa.scenario_prod.validators import (
+        validate_traceability,
+    )
 
     if world.control_structure is None:
         world.control_structure = _make_sp3_cs()
@@ -2221,7 +2239,9 @@ def _h_sp3_compute_na_quality(
     world: World, text: str, examples: dict
 ) -> tuple[bool, str]:
     """Handle: the N/A quality metric is computed."""
-    from asago_scenario_generator.stpa.scenario_prod.eval_metrics import metric_na_quality
+    from asago_scenario_generator.stpa.scenario_prod.eval_metrics import (
+        metric_na_quality,
+    )
 
     if world.enriched_threat_set is None:
         world.enriched_threat_set = _make_sp3_ets()
@@ -2233,7 +2253,9 @@ def _h_sp3_compute_bdi_grounding(
     world: World, text: str, examples: dict
 ) -> tuple[bool, str]:
     """Handle: the BDI grounding metric is computed."""
-    from asago_scenario_generator.stpa.scenario_prod.eval_metrics import metric_bdi_grounding
+    from asago_scenario_generator.stpa.scenario_prod.eval_metrics import (
+        metric_bdi_grounding,
+    )
 
     if world.control_structure is None:
         world.control_structure = _make_sp3_cs()
@@ -2259,7 +2281,9 @@ def _h_sp3_compute_traceability(
     world: World, text: str, examples: dict
 ) -> tuple[bool, str]:
     """Handle: the traceability depth metric is computed."""
-    from asago_scenario_generator.stpa.scenario_prod.eval_metrics import metric_traceability_depth
+    from asago_scenario_generator.stpa.scenario_prod.eval_metrics import (
+        metric_traceability_depth,
+    )
 
     envs = getattr(world, "sp3_envelopes", [])
     if world.enriched_threat_set is None:
@@ -2278,7 +2302,9 @@ def _h_sp3_compute_diversity(
     world: World, text: str, examples: dict
 ) -> tuple[bool, str]:
     """Handle: the diversity metric is computed."""
-    from asago_scenario_generator.stpa.scenario_prod.eval_metrics import metric_diversity
+    from asago_scenario_generator.stpa.scenario_prod.eval_metrics import (
+        metric_diversity,
+    )
 
     envs = getattr(world, "sp3_envelopes", [])
     world.sp3_metric = metric_diversity(envs)
@@ -2323,7 +2349,9 @@ def _h_sp3_compute_all_metrics(
 
 def _h_sp3_write_scorecard(world: World, text: str, examples: dict) -> tuple[bool, str]:
     """Handle: the scorecard is written."""
-    from asago_scenario_generator.stpa.scenario_prod.eval_metrics import write_eval_scorecard
+    from asago_scenario_generator.stpa.scenario_prod.eval_metrics import (
+        write_eval_scorecard,
+    )
     import tempfile
 
     run_dir = getattr(world, "sp3_run_dir", None) or Path(tempfile.mkdtemp())
@@ -2610,7 +2638,9 @@ def _h_sp3_compute_coverage(
     world: World, text: str, examples: dict
 ) -> tuple[bool, str]:
     """Handle: coverage gap analysis is computed."""
-    from asago_scenario_generator.stpa.scenario_prod.coverage import compute_coverage_gaps
+    from asago_scenario_generator.stpa.scenario_prod.coverage import (
+        compute_coverage_gaps,
+    )
 
     if world.enriched_threat_set is None:
         world.enriched_threat_set = _make_sp3_ets()
@@ -3809,7 +3839,9 @@ def _h_stage6_scenario_artifacts_written(
     world: World, text: str, examples: dict
 ) -> tuple[bool, str]:
     """Handle: scenario artifacts are written."""
-    from asago_scenario_generator.stpa.scenario_prod.run import _write_scenario_artifacts
+    from asago_scenario_generator.stpa.scenario_prod.run import (
+        _write_scenario_artifacts,
+    )
 
     env = getattr(world, "sp3_envelope", None)
     if env is None:
@@ -3883,7 +3915,9 @@ def _h_stage6_gherkin_spec_validation_on_spec(
     world: World, text: str, examples: dict
 ) -> tuple[bool, str]:
     """Handle: Gherkin structure validation is performed on the GherkinSpec."""
-    from asago_scenario_generator.stpa.scenario_prod.validators import validate_gherkin_structure
+    from asago_scenario_generator.stpa.scenario_prod.validators import (
+        validate_gherkin_structure,
+    )
 
     spec = getattr(world, "sp3_gherkin_spec", None)
     if spec is None:
@@ -3970,7 +4004,9 @@ def _h_stage7_envelope_validation_performed(
     world: World, text: str, examples: dict
 ) -> tuple[bool, str]:
     """Handle: Stage 7 envelope validation is performed."""
-    from asago_scenario_generator.stpa.scenario_prod.run import _validate_envelope_stage7
+    from asago_scenario_generator.stpa.scenario_prod.run import (
+        _validate_envelope_stage7,
+    )
 
     env = getattr(world, "sp3_envelope", None)
     if env is None:
@@ -4235,8 +4271,12 @@ def _h_stage6_pipeline_runs(
 ) -> tuple[bool, str]:
     """Handle: the Stage 6 pipeline runs for the scenario."""
     from asago_scenario_generator.stpa.scenario_prod.gherkin import generate_gherkin
-    from asago_scenario_generator.stpa.scenario_prod.attack_tree import generate_attack_tree
-    from asago_scenario_generator.stpa.scenario_prod.run import _validate_stage6_artifacts
+    from asago_scenario_generator.stpa.scenario_prod.attack_tree import (
+        generate_attack_tree,
+    )
+    from asago_scenario_generator.stpa.scenario_prod.run import (
+        _validate_stage6_artifacts,
+    )
 
     if world.scenario_spec is None:
         world.scenario_spec = _make_sp3_scenario_spec()
@@ -4503,7 +4543,9 @@ def _h_stage6_attack_tree_user_prompt_built(
     world: World, text: str, examples: dict
 ) -> tuple[bool, str]:
     """Handle: the attack tree user prompt is built."""
-    from asago_scenario_generator.stpa.scenario_prod.attack_tree import build_attack_tree_prompts
+    from asago_scenario_generator.stpa.scenario_prod.attack_tree import (
+        build_attack_tree_prompts,
+    )
     from asago_scenario_generator.stpa.scenario_prod._constants import PROMPTS_DIR
 
     if world.scenario_spec is None:
@@ -4901,13 +4943,19 @@ def _h_072o_render_all_prompts(
     world: World, text: str, examples: dict
 ) -> tuple[bool, str]:
     """Handle: all SP3 Stage 5 through Stage 6c prompts are rendered."""
-    from asago_scenario_generator.stpa.scenario_prod.attack_tree import build_attack_tree_prompts
-    from asago_scenario_generator.stpa.scenario_prod.bdi_generation import build_bdi_prompts
+    from asago_scenario_generator.stpa.scenario_prod.attack_tree import (
+        build_attack_tree_prompts,
+    )
+    from asago_scenario_generator.stpa.scenario_prod.bdi_generation import (
+        build_bdi_prompts,
+    )
     from asago_scenario_generator.stpa.scenario_prod.gherkin import (
         build_gherkin_prompts,
         find_security_constraint,
     )
-    from asago_scenario_generator.stpa.scenario_prod.narrative import build_narrative_prompts
+    from asago_scenario_generator.stpa.scenario_prod.narrative import (
+        build_narrative_prompts,
+    )
     from asago_scenario_generator.stpa.scenario_prod._constants import PROMPTS_DIR
 
     if world.scenario_spec is None:

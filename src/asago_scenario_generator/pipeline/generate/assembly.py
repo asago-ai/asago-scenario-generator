@@ -12,7 +12,11 @@ from typing import Any
 import yaml
 
 from asago_scenario_generator.llm.client import LLMClient, LLMResult
-from asago_scenario_generator.models.attack_tree import AttackTree, AttackTreeNode, GateType
+from asago_scenario_generator.models.attack_tree import (
+    AttackTree,
+    AttackTreeNode,
+    GateType,
+)
 from asago_scenario_generator.models.capability_profile import CapabilityProfile
 from asago_scenario_generator.models.projection_envelope import (
     ArtifactRealizationMapping,

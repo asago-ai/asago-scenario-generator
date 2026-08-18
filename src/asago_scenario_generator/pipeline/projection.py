@@ -117,7 +117,9 @@ def _digest(domain: str, value: Any) -> str:
 
 
 #: Domain separator for execution-requirements digest computation.
-EXECUTION_REQUIREMENTS_DIGEST_DOMAIN = "asago-scenario-generator:execution-requirements:v1"
+EXECUTION_REQUIREMENTS_DIGEST_DOMAIN = (
+    "asago-scenario-generator:execution-requirements:v1"
+)
 
 #: Domain separator for derivation context digest computation.
 DERIVATION_CONTEXT_DIGEST_DOMAIN = "asago-scenario-generator:derivation-context:v1"

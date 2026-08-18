@@ -64,7 +64,12 @@ from qa_harness import (  # noqa: E402
 # ---------------------------------------------------------------------------
 
 PROMPTS_DIR = (
-    PROJECT_ROOT / "src" / "asago_scenario_generator" / "stpa" / "system_model" / "prompts"
+    PROJECT_ROOT
+    / "src"
+    / "asago_scenario_generator"
+    / "stpa"
+    / "system_model"
+    / "prompts"
 )
 
 VALID_KC_SUBCODES = frozenset(
@@ -240,7 +245,11 @@ def run_static_checks(runner: QARunner) -> None:
     # We inspect the source file for field declarations rather than
     # importing the model, to stay at the "file on disk" level.
     profile_model_path = (
-        PROJECT_ROOT / "src" / "asago_scenario_generator" / "models" / "capability_profile.py"
+        PROJECT_ROOT
+        / "src"
+        / "asago_scenario_generator"
+        / "models"
+        / "capability_profile.py"
     )
     if profile_model_path.exists():
         src = profile_model_path.read_text(encoding="utf-8")

@@ -22,14 +22,23 @@ import yaml
 
 from asago_scenario_generator.stpa.infra.llm import LLMClient
 from asago_scenario_generator.stpa.infra.llm_helpers import safe_llm_call_raw
-from asago_scenario_generator.stpa.infra.manifest_helpers import count_calls_by_stage, hash_model
-from asago_scenario_generator.stpa.infra.templates import TemplateLoader, hash_prompt_templates
+from asago_scenario_generator.stpa.infra.manifest_helpers import (
+    count_calls_by_stage,
+    hash_model,
+)
+from asago_scenario_generator.stpa.infra.templates import (
+    TemplateLoader,
+    hash_prompt_templates,
+)
 from asago_scenario_generator.models.capability_profile import CapabilityProfile
 from asago_scenario_generator.stpa.infra.yaml_io import write_yaml
 from asago_scenario_generator.stpa.models.control_structure import ControlStructure
 from asago_scenario_generator.stpa.models.enriched_threat_set import EnrichedThreatSet
 from asago_scenario_generator.stpa.models.loss_analysis import LossAnalysis
-from asago_scenario_generator.stpa.models.scenario_envelope import GherkinSpec, ScenarioEnvelope
+from asago_scenario_generator.stpa.models.scenario_envelope import (
+    GherkinSpec,
+    ScenarioEnvelope,
+)
 from asago_scenario_generator.stpa.models.scenario_spec import ScenarioSpec
 
 from ._constants import PROMPTS_DIR

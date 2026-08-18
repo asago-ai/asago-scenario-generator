@@ -960,7 +960,9 @@ def run_dynamic_checks(runner: QARunner) -> None:
 
     # --- D2: has_unjustified_gaps over all three probes ---------------------
     try:
-        from asago_scenario_generator.stpa.system_model.critic import has_unjustified_gaps
+        from asago_scenario_generator.stpa.system_model.critic import (
+            has_unjustified_gaps,
+        )
 
         truth_table: list[tuple[str, dict[str, Any], bool]] = [
             (
@@ -1641,7 +1643,9 @@ def run_dynamic_checks(runner: QARunner) -> None:
 
     # --- D7: revision system prompt renders with absent nested references ---
     try:
-        from asago_scenario_generator.stpa.models.control_structure import ProcessModelPart
+        from asago_scenario_generator.stpa.models.control_structure import (
+            ProcessModelPart,
+        )
         from asago_scenario_generator.stpa.system_model.critic import _compute_next_ids
 
         stripped = cs.responsibilities[0].model_copy(

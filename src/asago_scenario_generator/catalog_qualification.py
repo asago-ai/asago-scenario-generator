@@ -13,7 +13,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from asago_scenario_generator.data.loaders import load_attack_patterns, load_yaml_strict
 from asago_scenario_generator.data.taxonomy_pins import load_taxonomy_resolver
-from asago_scenario_generator.eval.scorecard import ScorecardV1, scorecard_qualification_gates
+from asago_scenario_generator.eval.scorecard import (
+    ScorecardV1,
+    scorecard_qualification_gates,
+)
 from asago_scenario_generator.eval.versioned_metrics import evaluate_v3_scorecard
 from asago_scenario_generator.manifest import (
     ArtifactRole,
@@ -25,8 +28,13 @@ from asago_scenario_generator.manifest import (
 from asago_scenario_generator.models.attack_pattern import Digest, EvaluatedFactEvidence
 from asago_scenario_generator.models.capability_profile import CapabilityProfile
 from asago_scenario_generator.models.scenario import ScenarioEnvelope
-from asago_scenario_generator.pipeline.coverage_planning import revalidate_qualified_candidate
-from asago_scenario_generator.pipeline.persistence import CoveragePlanV2, FinalizationInventoryV1
+from asago_scenario_generator.pipeline.coverage_planning import (
+    revalidate_qualified_candidate,
+)
+from asago_scenario_generator.pipeline.persistence import (
+    CoveragePlanV2,
+    FinalizationInventoryV1,
+)
 from asago_scenario_generator.pipeline.projection import (
     CapabilityFactSnapshot,
     ProjectionBudget,

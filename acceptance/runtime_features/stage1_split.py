@@ -529,7 +529,10 @@ def _h_stage1_cap_kc_nonempty(
 
 def _h_stage1_cap_kc_valid(world: World, text: str, examples: dict) -> tuple[bool, str]:
     """Handle: every value in `kc_subcodes` is a valid KC sub-code."""
-    from asago_scenario_generator.models.capability_profile import VALID_KC_SUBCODES, KCX_PREFIX
+    from asago_scenario_generator.models.capability_profile import (
+        VALID_KC_SUBCODES,
+        KCX_PREFIX,
+    )
 
     artifacts = getattr(world, "stage1_artifacts", {})
     cap = artifacts.get("capability-profile.yaml")
@@ -786,7 +789,9 @@ def register(api: object) -> None:
         source_order=21443,
     )
     api.register_first(
-        "I run `asago-scenario-generator stpa-run", _h_stage1_run_stpa, source_order=21445
+        "I run `asago-scenario-generator stpa-run",
+        _h_stage1_run_stpa,
+        source_order=21445,
     )
     api.register(
         "the command exits with code 0", _h_stage1_exit_code_zero, source_order=21447

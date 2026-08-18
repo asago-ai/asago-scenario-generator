@@ -22,7 +22,10 @@ from asago_scenario_generator.eval.scorecard import (
 from asago_scenario_generator.manifest import ArtifactRole, ManifestInventoryResolver
 from asago_scenario_generator.models.capability_profile import CapabilityProfile
 from asago_scenario_generator.models.scenario import ScenarioEnvelope
-from asago_scenario_generator.pipeline.persistence import CoveragePlanV2, FinalizationInventoryV1
+from asago_scenario_generator.pipeline.persistence import (
+    CoveragePlanV2,
+    FinalizationInventoryV1,
+)
 from asago_scenario_generator.pipeline.finalization_gates import AdmissionEvidenceId
 
 _TITLE_TOKEN_RE = re.compile(r"[a-z0-9]+")
