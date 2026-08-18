@@ -1,0 +1,120 @@
+"""Production source and lifecycle regressions for cmps.5 Phase 6."""
+
+from __future__ import annotations
+
+import inspect
+
+from asago_scenario_generator.pipeline.coverage_planning import CoveragePlan, CoveragePlanEntry
+from asago_scenario_generator.pipeline.runner import run_pipeline
+from asago_scenario_generator.pipeline.runner_finalization import strict_v3_coverage_plan
+from tests.test_phase4_persistence import (
+    ENTRY_POINT_ID,
+    FALLBACK_ID,
+    PRIMARY_ID,
+    _choice,
+)
+
+
+def test_strict_v3_plan_is_primary_first_and_all_choices_start_available() -> None:
+    fallback = _choice(FALLBACK_ID, 7).model_dump(mode="json")
+    primary = _choice(PRIMARY_ID, 9).model_dump(mode="json")
+    legacy = CoveragePlan(
+        schema_version="1",
+        completeness="not_applicable",
+        evidence_refs=[],
+        targets=[
+            CoveragePlanEntry(
+                entry_point_id=ENTRY_POINT_ID,
+                entry_point_name="input",
+                ordered_choices=[fallback, primary],
+                primary_candidate_id=PRIMARY_ID,
+                primary_state="selected",
+                fallback_available=[fallback],
+            )
+        ],
+    )
+
+    plan = strict_v3_coverage_plan(legacy)
+    target = plan.targets[0]
+
+    assert plan.schema_version == "2"
+    assert [item.candidate_id for item in target.ordered_choices] == [
+        PRIMARY_ID,
+        FALLBACK_ID,
+    ]
+    assert [item.rank for item in target.ordered_choices] == [0, 1]
+    assert target.fallback_available == target.ordered_choices
+    assert target.attempted_candidate_ids == []
+
+
+def test_strict_v3_plan_marks_structural_empty_target_exhausted() -> None:
+    legacy = CoveragePlan(
+        schema_version="1",
+        completeness="not_applicable",
+        evidence_refs=[],
+        targets=[
+            CoveragePlanEntry(
+                entry_point_id=ENTRY_POINT_ID,
+                entry_point_name="input",
+                ordered_choices=[],
+                primary_candidate_id=None,
+                primary_state="uncovered",
+                fallback_available=[],
+            )
+        ],
+    )
+
+    target = strict_v3_coverage_plan(legacy).targets[0]
+
+    assert target.target_state.value == "exhausted"
+    assert target.primary_candidate_id is None
+    assert target.fallback_available == []
+
+
+def test_v3_runner_contains_no_legacy_generation_or_mutation_lifecycle() -> None:
+    source = inspect.getsource(run_pipeline)
+
+    assert "run_target_finalization(" in source
+    assert "return _complete_v3_run(" in source
+    for forbidden in (
+        "generate_scenario(",
+        "write_scenario_outputs(",
+        "replace_scenario_outputs(",
+        "write_call_log(",
+        "validate_phantom_capabilities(",
+        "enforce_parsimony(",
+        "_iter_leaves(",
+        "_assert_entry_point_ownership(",
+        "_run_early_access_gate(",
+        "_compute_gap_attributions(",
+        "_reconcile_artifacts(",
+        "_reserve_attempt(",
+        "_finalize_attempt(",
+        "_build_run_inventory(",
+        "compute_artifact_hash(",
+    ):
+        assert forbidden not in source
+
+    # V3 records lifecycle in the finalization inventory. The runner must not
+    # reconstruct or publish the retired v2 manifest mirrors.
+    for legacy_write in (
+        "failed_manifest.attempts =",
+        "failed_manifest.funnel =",
+        "failed_manifest.stage_records =",
+        "failed_manifest.rule_verdicts =",
+        "failed_manifest.artifacts =",
+        "failed_manifest.phantom_validation =",
+        "failed_manifest.structural_validation =",
+        "failed_manifest.semantic_validation =",
+        "failed_manifest.leaf_technique_provenance =",
+        "failed_manifest.parsimony =",
+        "failed_manifest.scenarios_generated =",
+        "failed_manifest.scenarios_failed =",
+        "derive_funnel_from_attempts(",
+        "validate_attempt_equations(",
+        '"phantom_validation":',
+        '"structural_validation":',
+        '"semantic_validation":',
+        '"parsimony":',
+    ):
+        assert legacy_write not in source

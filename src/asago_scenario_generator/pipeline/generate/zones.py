@@ -1,0 +1,143 @@
+"""Zone enforcement logic for narratives and attack trees.
+
+Action-aware enforcement (cmps.9):
+- External preconditions (zone=None) are never repaired into active AI zones.
+- Internal action zone requirements remain profile-active.
+- Tool invocation zone must be exactly 'tool_execution'.
+- Invalid zones are rejected (violation list), not silently pruned (cmps.9 review correction 4).
+"""
+
+from __future__ import annotations
+
+import logging
+
+from asago_scenario_generator.models.attack_tree import AttackTree, AttackTreeNode
+from asago_scenario_generator.models.scenario import NarrativeLayer
+
+logger = logging.getLogger(__name__)
+
+
+def _enforce_zones_narrative(
+    narrative: NarrativeLayer,
+    zones_active: list[str] | None = None,
+) -> NarrativeLayer:
+    """Validate zone membership of narrative steps against *zones_active*.
+
+    On candidate-v2 paths (422o.4), zone filtering/renumbering is semantic
+    repair and is prohibited.  This function now **validates** zones and
+    raises ``ValueError`` when any step has a disallowed zone — it never
+    deletes, filters, or renumbers steps.  The caller must retry or reject.
+
+    When *zones_active* is ``None`` the narrative is returned unchanged
+    (no validation possible).
+    """
+    if zones_active is None:
+        return narrative
+
+    allowed = set(zones_active)
+    violations: list[str] = []
+
+    for step in narrative.steps:
+        if step.zone not in allowed:
+            violations.append(
+                f"disallowed-zone: narrative step {step.step_number} "
+                f"has zone '{step.zone}' which is not in "
+                f"zones_active={sorted(allowed)}."
+            )
+
+    for z in narrative.zone_sequence:
+        if z not in allowed:
+            violations.append(
+                f"disallowed-zone: zone_sequence contains '{z}' "
+                f"which is not in zones_active={sorted(allowed)}."
+            )
+
+    if violations:
+        raise ValueError(
+            "Narrative has disallowed zones (422o.4: no semantic repair): "
+            + "; ".join(violations)
+        )
+
+    return narrative
+
+
+def _collect_zones_from_tree(node: AttackTreeNode) -> set[str]:
+    """Collect all non-None zones referenced in a tree."""
+    zones: set[str] = set()
+    if node.zone is not None:
+        zones.add(node.zone)
+    if node.children:
+        for child in node.children:
+            zones.update(_collect_zones_from_tree(child))
+    return zones
+
+
+def _validate_tree_zones_node(
+    node: AttackTreeNode,
+    allowed: set[str],
+    violations: list[str],
+) -> None:
+    """Recursively validate that all zoned nodes use allowed zones.
+
+    Nodes with zone=None (external preconditions, external impacts) are
+    always valid — they are outside the AI boundary.
+
+    Returns violations for nodes with zones not in *allowed*.  Does NOT
+    prune or collapse — the caller retries or rejects the tree.
+    """
+    if node.zone is not None and node.zone not in allowed:
+        violations.append(
+            f"disallowed-zone: node '{node.id}' has zone '{node.zone}' "
+            f"which is not in zones_active={sorted(allowed)}. "
+            f"The tree must be retried or rejected — no silent pruning."
+        )
+
+    if node.children:
+        for child in node.children:
+            _validate_tree_zones_node(child, allowed, violations)
+
+
+def validate_attack_tree_zones(
+    tree: AttackTree,
+    zones_active: list[str] | None = None,
+) -> list[str]:
+    """Validate that all zoned nodes in the attack tree use allowed zones.
+
+    Returns a list of violation descriptions (empty if all zones are valid).
+    Nodes with zone=None (external preconditions, external impacts) are
+    always valid.
+
+    This is a **validation**, not a transform — it never prunes, collapses,
+    or fabricates nodes.  The caller must retry or reject when violations
+    exist (cmps.9 review correction 4).
+    """
+    if zones_active is None:
+        return []
+
+    allowed = set(zones_active)
+    violations: list[str] = []
+    _validate_tree_zones_node(tree.root, allowed, violations)
+    return violations
+
+
+def _enforce_zones_attack_tree(
+    tree: AttackTree,
+    zones_active: list[str] | None = None,
+) -> AttackTree:
+    """Validate attack-tree zones against *zones_active*.
+
+    Returns the tree unchanged when all zones are valid or when
+    *zones_active* is ``None``.  Raises ``ValueError`` when any node
+    has a disallowed zone — the caller must retry or reject.
+
+    This is a **validation gate**, not a pruning transform (cmps.9 review
+    correction 4).  It never prunes, collapses, or fabricates nodes.
+    """
+    if zones_active is None:
+        return tree
+
+    violations = validate_attack_tree_zones(tree, zones_active)
+    if violations:
+        raise ValueError("Attack tree has disallowed zones: " + "; ".join(violations))
+
+    return tree
