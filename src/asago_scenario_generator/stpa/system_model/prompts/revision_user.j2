@@ -1,0 +1,22 @@
+## Critic Findings
+### Gaps
+{% for gap in critic_findings.gaps %}
+- **{{ gap.gap_type }}**: {{ gap.description }}
+  Attack path: {{ gap.related_attack_path }}
+  Suggested remedy: {{ gap.suggested_remedy }}
+{% endfor %}
+### Checklist Results
+{% for name, status in critic_findings.checklist_results.items() %}
+- {{ name }}: {{ status }}
+{% endfor %}
+### Taxonomy Probe Results
+{% for name, status in critic_findings.taxonomy_probe_results.items() %}
+- {{ name }}: {{ status }}
+{% endfor %}
+
+## Your Task
+Address the critic findings. For each gap and each "absent_unjustified" checklist/taxonomy result:
+- **Either** add the missing element(s) to the RevisionDelta
+- **Or** dismiss it with a one-sentence justification in dismissed_gaps
+
+Focus on real behavioral deficiencies. Dismiss findings that duplicate existing coverage or target capabilities the system does not have.
