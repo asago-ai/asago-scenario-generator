@@ -1,34 +1,43 @@
-# Project Name
+# Asago Scenario Generator
 
-<!-- TODO: Brief one-line description of what this project does -->
+Pre-alpha adversarial-scenario generation for AI systems, with taxonomy/risk
+and STPA workflows maintained as peer product surfaces.
 
 ## Commands
 
 ```bash
-# Install / sync dependencies
-uv sync
-
-# Run all tests
-uv run pytest
-
-# Format + lint + type check
-uv run ruff format src/ tests/ && uv run ruff check src/ tests/ && uv run mypy src/
-
-# Lint (with auto-fix)
-uv run ruff check --fix src/ tests/
-
-# Format
-uv run ruff format src/ tests/
-
-# Type check
-uv run mypy src/
+uv sync --locked
+./scripts/quality.sh
+uv run pytest tests/ -q
+./scripts/acceptance.sh
 ```
+
+Generated acceptance artifacts live under `build/acceptance/` and remain
+untracked. Live-model acceptance requires the explicit opt-in
+`ASAGO_SCENARIO_GENERATOR_QA_PIPELINE=1`; deterministic tests must not contact
+an LLM endpoint.
 
 ## Architecture
 
-<!-- TODO: Describe the high-level architecture -->
+- `src/asago_scenario_generator/` contains shared domain models, the
+  taxonomy/risk pipeline, the STPA pipeline, CLI, evaluation, and reporting.
+- `data/` contains committed schemas, taxonomies, mappings, and qualification
+  inputs.
+- `features/` is the source of truth for acceptance behavior;
+  `acceptance/` contains the portable generator, runtime, and handlers.
+- `config/` contains sanitized examples and portable project configuration.
+
+Read `docs/architecture/overview.md` before changing cross-pipeline contracts.
+Read `docs/development/swarmforge.md` when planning or executing feature work,
+changing acceptance behavior, or running the quality sequence.
 
 ## Development
 
-- `AGENTS.md` is a symlink to `CLAUDE.md` — they are the same file.
-- DO NOT skip updating `CLAUDE.md`/`AGENTS.md` and `README.md` when changes require it.
+- Track durable work and specification approval in GitHub Issues and PRs.
+- Preserve both generation approaches unless the issue explicitly changes
+  their shared contract.
+- Keep harness installations and runtime state local; the repository owns only
+  portable methodology, configuration, and scripts.
+- Update `README.md`, this file, and linked documentation when an interface or
+  workflow changes.
+- `AGENTS.md` is a symlink to this file.

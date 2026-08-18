@@ -1,72 +1,67 @@
-# macOS
-.DS_Store
-
-# Byte-compiled / optimized / DLL files
+# Python and packaging
 __pycache__/
 *.py[codz]
-*$py.class
-
-# C extensions
-*.so
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
 *.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+.Python
+.venv*/
+venv/
+dist/
+build/
 
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
+# Tests, coverage, and tools
+.pytest_cache/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
 .coverage
 .coverage.*
-.cache
-nosetests.xml
+htmlcov/
 coverage.xml
-*.cover
-*.py.cover
-.hypothesis/
-.pytest_cache/
-cover/
+lcov*.info
+coverage.lcov
 
-# Environments
+# Generated project output
+output/
+tmp/
+acceptance/dry/
+acceptance/generated/
+build/acceptance/
+build/acceptance-mutation/
+
+# Secrets and local configuration
 .env
+.env.*
 .envrc
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+config/model-profiles.yaml
+config/model-profiles.yaml.backup
 
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Ruff
-.ruff_cache/
-
-# PyCharm
+# Editor and operating-system state
+.DS_Store
 .idea/
+.vscode/
+*.swp
 
-# UV
-# uv.lock
+# Harness-specific installations and runtime state
+.agents/
+.beads/
+.codex/
+.factory/
+.opencode/
+.superpowers/
+.swarmforge/
+.worktrees/
+swarmforge/
+swarm
+ai/
+opencode.json
 
-# Prevent default staging of user-local Claude settings
-.claude/settings.json
+# Preserve the organization-managed Claude project scaffold only
+.claude/*
+!.claude/hooks/
+!.claude/hooks/**
+!.claude/settings.json
+
+# Local upstream/tool checkouts and retired reference-gym material
+.cache/
+data/reference-gym/
+tests/test_reference_gym_contract.py
