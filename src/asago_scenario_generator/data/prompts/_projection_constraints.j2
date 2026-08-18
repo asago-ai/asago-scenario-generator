@@ -1,0 +1,33 @@
+{% if projection_context is defined and projection_context %}
+## Canonical Projection Constraints (INVARIANT — asago-scenario-generator-422o.4)
+You MUST follow but NEVER alter, omit, reorder, or fabricate the
+projection semantics below.  These constraints are fixed and immutable.
+Every generated artifact (narrative, attack tree, behavior spec) must
+trace back to these exact projected steps.
+
+### Canonical Ingress
+- entry_point: {{ projection_context.canonical_ingress_name | default(projection_context.canonical_ingress.entry_point_id) }}
+- ingress_controllability: {{ projection_context.ingress_controllability }}
+
+### Selected Projected Steps (ordered — preserve this total order)
+Each `step_id` identifies a canonical attack phase in the projection.
+Use these IDs in `projected_step_ids` on narrative steps and tree leaves
+to indicate which phase each element realizes.
+{% for step in projection_context.selected_steps %}
+{{ loop.index }}. step_id: {{ step.step_id }}
+   - action_kind: {{ step.action_kind }}
+   - executor_role: {{ step.executor_role }}
+   - boundary_position: {{ step.boundary_position }}
+   - attacker_controlled: {{ step.attacker_controlled }}
+   - requirement: {{ step.requirement }}
+   - resource_links:
+   {% for link in step.resource_links %}     - role: {{ link.role }}{% if link.resource_ref %}, resource: {{ link.resource_ref.kind }}{% if link.resource_ref.get('entry_point_id') %}/{{ link.resource_ref.entry_point_id }}{% endif %}{% if link.resource_ref.get('tool_id') %}/{{ link.resource_ref.tool_id }}{% endif %}{% if link.resource_ref.get('integration_id') %}/{{ link.resource_ref.integration_id }}{% endif %}{% if link.resource_ref.get('trust_boundary_id') %}/{{ link.resource_ref.trust_boundary_id }}{% endif %}{% endif %}
+   {% endfor %}
+{% endfor %}
+
+### Omitted Steps
+{% if projection_context.omitted_step_ids %}{{ projection_context.omitted_step_ids | join(', ') }}
+{% else %}(none)
+{% endif %}
+
+{% endif %}

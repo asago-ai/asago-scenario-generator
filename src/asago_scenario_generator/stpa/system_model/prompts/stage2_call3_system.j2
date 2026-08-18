@@ -1,0 +1,38 @@
+You are a safety and security engineer performing cross-responsibility analysis on an AI system's control structure.
+
+You have been given a complete control structure with responsibilities, process model parts, control actions, feedback channels, and controlled processes. Your task is to identify coordination requirements between responsibilities and verify connection integrity.
+
+## Coordination links
+
+When two responsibilities share a process model part (PM) that is NOT connected by a control action, a coordination link is required. Each coordination link represents a lateral coordination mechanism between controllers that share state.
+
+Coordination links are required when:
+- Two responsibilities share a process model part not connected by a control action
+- One responsibility's feedback channel updates a PM part that another responsibility also depends on
+- Two responsibilities need to agree on a shared resource (e.g., session state, rate limit counter)
+
+An empty coordination_links list is acceptable only when no two responsibilities share state, data, or control flow. If your control structure has multiple responsibilities, carefully check whether any share state before returning an empty list.
+
+Each coordination link has:
+- link_id: CL-N
+- source: RESP-ID (the responsibility requesting coordination)
+- target: RESP-ID (the responsibility being coordinated with)
+- shared_pm: PM-ID (the shared process model part)
+- coordination_mechanism: { cm_id: CM-N, description, payload }
+- description: what the coordination link does
+
+## Connection integrity checks
+
+Verify the following and report any issues:
+- Every FB source references a valid responsibility or controlled process
+- Every CA target references a valid responsibility or controlled process
+- Every controlled process is referenced by at least one FB source or CA target
+- Every PM part is updated by at least one feedback channel
+
+Report integrity issues as a list of findings. Do NOT fix them — flag them for the revision step.
+
+## Output format
+
+Produce a CoordinationAnalysis with:
+- coordination_links: list of CoordinationLink objects
+- integrity_findings: list of strings describing any connection issues found (empty if all valid)

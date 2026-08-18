@@ -1,0 +1,304 @@
+"""Taxonomy grounding metrics for scenario evaluation.
+
+Validates that threat_ids in attack tree nodes reference valid entries
+in the bundled OWASP Agentic Threats data.  Also measures cross-lens
+technique agreement between attack tree and behavior spec.
+"""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+
+# Regex for technique IDs: ATLAS like [AML.T0054] or LAAF like [S1], [M2]
+_TECHNIQUE_RE = re.compile(r"\[(?:AML\.T\d{4}(?:\.\d{3})?|[SML]\d+)\]")
+
+
+# Default path to bundled OWASP agentic threats data
+_DEFAULT_THREATS_PATH = (
+    Path(__file__).resolve().parents[3]
+    / "data"
+    / "taxonomies"
+    / "owasp-agentic-threats"
+    / "owasp-agentic-threats-v1.1.yaml"
+)
+
+
+def _load_valid_threat_ids(threats_path: Path | None = None) -> set[str]:
+    """Load the set of valid threat IDs from the OWASP agentic threats file."""
+    path = threats_path or _DEFAULT_THREATS_PATH
+    if not path.exists():
+        return set()
+    with open(path) as f:
+        data = yaml.safe_load(f)
+    threats = data.get("threats", {})
+    return set(threats.keys())
+
+
+def _collect_tree_threat_ids(node: dict[str, Any]) -> list[str]:
+    """Recursively collect all threat_id values from attack tree nodes."""
+    ids: list[str] = []
+    tid = node.get("threat_id")
+    if tid:
+        ids.append(tid)
+    for child in node.get("children") or []:
+        ids.extend(_collect_tree_threat_ids(child))
+    return ids
+
+
+def _collect_tree_technique_ids(node: dict[str, Any]) -> list[str]:
+    """Recursively collect all technique_id values from attack tree nodes."""
+    ids: list[str] = []
+    tech_id = node.get("technique_id")
+    if tech_id:
+        ids.append(tech_id)
+    for child in node.get("children") or []:
+        ids.extend(_collect_tree_technique_ids(child))
+    return ids
+
+
+def _get_seed_technique_ids(scenario: dict[str, Any]) -> list[str] | None:
+    """Extract the seed's atlas_technique_ids from the scenario's taxonomy chain.
+
+    Returns None if the field is absent, or the list of IDs if present.
+    """
+    faceting = scenario.get("faceting", {})
+    chain = faceting.get("taxonomy_chain", {})
+    return chain.get("atlas_technique_ids")
+
+
+def score_grounding(
+    scenarios: list[dict[str, Any]],
+    threats_path: Path | None = None,
+) -> dict[str, Any]:
+    """Compute taxonomy grounding metrics across a batch of scenarios.
+
+    Checks:
+    - threat_id validity: fraction of threat_ids that map to known OWASP threats
+    - dangling reference count: number of invalid threat_ids
+    - technique_id grounding: fraction of technique_ids on tree nodes that
+      match the seed's atlas_technique_ids (ungrounded = hallucinated by LLM)
+
+    Args:
+        scenarios: List of scenario dicts (parsed YAML).
+        threats_path: Optional path to the OWASP agentic threats file.
+
+    Returns:
+        Dict with threat_id_validity (float 0-1), dangling_references (int),
+        technique_id_grounding (float 0-1), ungrounded_technique_references (int),
+        and details about any invalid references.
+    """
+    valid_ids = _load_valid_threat_ids(threats_path)
+
+    total_refs = 0
+    valid_refs = 0
+    dangling: list[dict[str, str]] = []
+
+    # Technique grounding tracking
+    total_technique_refs = 0
+    grounded_technique_refs = 0
+    ungrounded_techniques: list[dict[str, str]] = []
+
+    for scenario in scenarios:
+        scenario_id = scenario.get("scenario_id", "unknown")
+        tree = scenario.get("attack_tree", {})
+        root = tree.get("root", {})
+
+        # --- threat_id validation ---
+        threat_ids = _collect_tree_threat_ids(root)
+        for tid in threat_ids:
+            total_refs += 1
+            if tid in valid_ids:
+                valid_refs += 1
+            else:
+                dangling.append(
+                    {
+                        "scenario_id": scenario_id,
+                        "threat_id": tid,
+                    }
+                )
+
+        # --- technique_id grounding ---
+        technique_ids = _collect_tree_technique_ids(root)
+        seed_technique_ids = _get_seed_technique_ids(scenario)
+
+        if technique_ids:
+            # If the seed has atlas_technique_ids, validate against them
+            allowed = set(seed_technique_ids) if seed_technique_ids else set()
+            for tech_id in technique_ids:
+                total_technique_refs += 1
+                if allowed and tech_id in allowed:
+                    grounded_technique_refs += 1
+                elif not allowed:
+                    # No seed technique IDs -> any technique_id is ungrounded
+                    ungrounded_techniques.append(
+                        {
+                            "scenario_id": scenario_id,
+                            "technique_id": tech_id,
+                            "reason": "no_seed_technique_ids",
+                        }
+                    )
+                else:
+                    ungrounded_techniques.append(
+                        {
+                            "scenario_id": scenario_id,
+                            "technique_id": tech_id,
+                            "reason": "not_in_seed",
+                        }
+                    )
+
+    validity = valid_refs / total_refs if total_refs > 0 else 1.0
+    technique_grounding = (
+        grounded_technique_refs / total_technique_refs
+        if total_technique_refs > 0
+        else 1.0
+    )
+
+    result: dict[str, Any] = {
+        "threat_id_validity": round(validity, 4),
+        "dangling_references": len(dangling),
+        "technique_id_grounding": round(technique_grounding, 4),
+        "ungrounded_technique_references": len(ungrounded_techniques),
+    }
+    if dangling:
+        result["dangling_details"] = dangling
+    if ungrounded_techniques:
+        result["ungrounded_technique_details"] = ungrounded_techniques
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Cross-lens technique agreement
+# ---------------------------------------------------------------------------
+
+
+def _extract_technique_ids_from_text(text: str) -> set[str]:
+    """Extract ATLAS technique IDs from annotated text.
+
+    Looks for patterns like ``[AML.T0054]`` or ``[AML.T0051.000]`` and
+    returns the IDs *without* surrounding brackets.
+    """
+    return {m.group()[1:-1] for m in _TECHNIQUE_RE.finditer(text)}
+
+
+def _extract_narrative_technique_ids(scenario: dict[str, Any]) -> set[str]:
+    """Extract technique IDs from narrative step action and effect text."""
+    ids: set[str] = set()
+    narrative = scenario.get("narrative", {})
+    for step in narrative.get("steps", []):
+        for field in ("action", "effect"):
+            text = step.get(field, "")
+            if text:
+                ids |= _extract_technique_ids_from_text(text)
+    return ids
+
+
+def _extract_spec_technique_ids(
+    scenario: dict[str, Any],
+    gherkin_text: str | None = None,
+) -> set[str]:
+    """Extract technique IDs from the behavior spec (Gherkin text).
+
+    Uses the ``behavior_spec`` field on the scenario dict first, falling
+    back to the separately-loaded *gherkin_text* if provided.
+    """
+    text = ""
+    bs = scenario.get("behavior_spec")
+    if isinstance(bs, str):
+        text = bs
+    elif gherkin_text:
+        text = gherkin_text
+    if not text:
+        return set()
+    return _extract_technique_ids_from_text(text)
+
+
+def score_technique_agreement(
+    scenarios: list[dict[str, Any]],
+    gherkin_files: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Compute cross-lens technique agreement between attack tree and spec.
+
+    For each scenario, collects the set of ATLAS technique IDs referenced in:
+    1. **Attack tree** -- ``technique_id`` fields on tree nodes
+    2. **Behavior spec** -- ``[AML.T0054]`` annotations in Gherkin text
+
+    Agreement is the Jaccard similarity of the two sets (intersection over
+    union).  A score of 1.0 means both lenses reference exactly the same
+    techniques.
+
+    Narrative technique IDs are still extracted and reported in per-scenario
+    details for informational purposes, but they do not affect the score
+    (narrative prose is free-form and rarely contains ``[AML.T0054]``-style
+    annotations).
+
+    Args:
+        scenarios: List of scenario dicts (parsed YAML).
+        gherkin_files: Optional dict mapping scenario stem to Gherkin text
+            (used when the scenario dict lacks a ``behavior_spec`` field).
+
+    Returns:
+        Dict with ``mean_technique_agreement`` (float 0-1) and per-scenario
+        details for any scenario with agreement < 1.0.
+    """
+    if gherkin_files is None:
+        gherkin_files = {}
+
+    per_scenario: dict[str, dict[str, Any]] = {}
+    agreements: list[float] = []
+
+    for scenario in scenarios:
+        scenario_id = scenario.get("scenario_id", "unknown")
+
+        narrative_ids = _extract_narrative_technique_ids(scenario)
+
+        tree_root = scenario.get("attack_tree", {}).get("root", {})
+        tree_ids = set(_collect_tree_technique_ids(tree_root))
+
+        gherkin_text = gherkin_files.get(scenario_id)
+        spec_ids = _extract_spec_technique_ids(scenario, gherkin_text)
+
+        # Jaccard similarity of tree and spec sets only
+        union = tree_ids | spec_ids
+        if not union:
+            # Vacuously agree when no techniques in either lens
+            agreement = 1.0
+        else:
+            intersection = tree_ids & spec_ids
+            agreement = len(intersection) / len(union)
+
+        agreements.append(agreement)
+
+        # Build detail record for imperfect agreement
+        detail: dict[str, Any] = {
+            "technique_agreement": round(agreement, 4),
+            "narrative_techniques": sorted(narrative_ids),
+            "tree_techniques": sorted(tree_ids),
+            "spec_techniques": sorted(spec_ids),
+        }
+
+        missing_from_tree = spec_ids - tree_ids
+        missing_from_spec = tree_ids - spec_ids
+
+        if missing_from_tree:
+            detail["missing_from_tree"] = sorted(missing_from_tree)
+        if missing_from_spec:
+            detail["missing_from_spec"] = sorted(missing_from_spec)
+
+        if agreement < 1.0:
+            per_scenario[scenario_id] = detail
+
+    mean_agreement = sum(agreements) / len(agreements) if agreements else 1.0
+
+    result: dict[str, Any] = {
+        "mean_technique_agreement": round(mean_agreement, 4),
+    }
+    if per_scenario:
+        result["per_scenario"] = per_scenario
+
+    return result
