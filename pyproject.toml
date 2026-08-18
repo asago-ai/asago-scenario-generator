@@ -32,6 +32,9 @@ dev = [
     "ruff",
 ]
 
+[tool.uv]
+exclude-newer = "7 days"
+
 [tool.pytest.ini_options]
 # Bare `pytest` runs the unit suite only. The acceptance suite is generated
 # from Gherkin IR and is run explicitly (`pytest build/acceptance/generated/`) so
