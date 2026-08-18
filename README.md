@@ -56,6 +56,18 @@ The pipeline profiles capabilities, determines the threat surface, qualifies
 and projects candidates, generates scenario artifacts, evaluates them, and
 writes an immutable run directory beneath the requested output collection.
 
+Automatic capability inference produces an `inferred_partial` Stage 1 profile.
+Authoritative projection may also require operator-reviewed architecture data,
+especially `trust_boundaries`, `external_integrations`, and explicit
+qualification facts. For a substantive run, pass that reviewed profile with
+`--profile` and, where applicable, fact readings with `--qualification-facts`.
+An inferred-only run can finish with zero scenarios when the required
+architecture evidence is unavailable.
+
+Do not use process exit alone as the live-run success criterion. Inspect the
+generated `run-manifest.yaml` and finalization inventory for admitted scenarios
+and recorded errors.
+
 Useful companion commands include `profile`, `resume`, `eval`, `report`,
 `qualify-catalog`, and `validate-catalog-qualification`. Run
 `asago-scenario-generator --help` for the complete interface.
