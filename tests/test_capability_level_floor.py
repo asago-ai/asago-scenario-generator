@@ -211,7 +211,7 @@ class TestR4IndirectAdversarial:
         )
         assert result == "novice"
 
-    @pytest.mark.parametrize("threat_id", list(_ADVERSARIAL_ONLY_THREATS - {"T3"}))
+    @pytest.mark.parametrize("threat_id", sorted(_ADVERSARIAL_ONLY_THREATS - {"T3"}))
     def test_all_adversarial_threats_except_t2(self, threat_id: str):
         if threat_id == "T2":
             pytest.skip("T2 is exempted")

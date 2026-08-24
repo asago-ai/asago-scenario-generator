@@ -29,6 +29,7 @@ asago-scenario-generator = "asago_scenario_generator.cli:app"
 dev = [
     "hypothesis>=6.164.0",
     "pytest-cov>=7.1.0",
+    "pytest-xdist>=3.8.0",
     "ruff",
 ]
 

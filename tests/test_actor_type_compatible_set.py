@@ -34,7 +34,7 @@ from asago_scenario_generator.prompts import render_prompt
 class TestR1AdversarialOnlyThreat:
     """R1: When threat_id is adversarial-only, negligent-insider is removed."""
 
-    @pytest.mark.parametrize("threat_id", list(_ADVERSARIAL_ONLY_THREATS))
+    @pytest.mark.parametrize("threat_id", sorted(_ADVERSARIAL_ONLY_THREATS))
     def test_all_adversarial_threats_exclude_negligent(self, threat_id: str):
         result = compute_compatible_actor_types(["AML.T0053"], "direct", threat_id)
         assert "negligent-insider" not in result
