@@ -15,7 +15,9 @@ input ranges:
 
 from __future__ import annotations
 
-from hypothesis import HealthCheck, given, settings, strategies as st
+import re
+
+from hypothesis import HealthCheck, assume, given, settings, strategies as st
 
 from asago_scenario_generator.stpa.models.ica_enumeration import UCAType
 from asago_scenario_generator.stpa.models.loss_analysis import (
@@ -375,8 +377,9 @@ class TestLossHazardIdValidator:
         self, spec: GherkinSpec, loss_ids: list[str], hazard_ids: list[str]
     ):
         """When no L-*/H-* IDs appear in Gherkin, validation always passes."""
+        text = spec.to_feature_text()
+        assume(not re.search(r"[LH]-\d+", text))
         la = _make_loss_analysis_with_ids(loss_ids, hazard_ids)
-        # The spec strategy doesn't inject L-*/H-* IDs, so this should pass
         result = validate_loss_hazard_id_references(spec, la)
         assert result.passed
 
