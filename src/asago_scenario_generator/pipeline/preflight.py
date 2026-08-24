@@ -38,10 +38,7 @@ from asago_scenario_generator.pipeline.threats import determine_threat_surface
 
 
 _DEFAULT_CROSS_TAXONOMY_PATH = (
-    DATA_ROOT
-    / "taxonomies"
-    / "mappings"
-    / "cross-taxonomy-mappings.yaml"
+    DATA_ROOT / "taxonomies" / "mappings" / "cross-taxonomy-mappings.yaml"
 )
 
 

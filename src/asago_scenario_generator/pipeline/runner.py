@@ -80,10 +80,7 @@ from asago_scenario_generator.pipeline.seeds import ScenarioSeed
 logger = logging.getLogger(__name__)
 
 _DEFAULT_CROSS_TAXONOMY_PATH = (
-    DATA_ROOT
-    / "taxonomies"
-    / "mappings"
-    / "cross-taxonomy-mappings.yaml"
+    DATA_ROOT / "taxonomies" / "mappings" / "cross-taxonomy-mappings.yaml"
 )
 
 

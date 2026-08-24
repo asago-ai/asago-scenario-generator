@@ -88,10 +88,7 @@ def load_cross_taxonomy_mappings(path: str | Path) -> dict[str, Any]:
 
 
 _DEFAULT_KC_THREAT_MAPPING_PATH = (
-    DATA_ROOT
-    / "taxonomies"
-    / "mappings"
-    / "kc-threat-mapping.yaml"
+    DATA_ROOT / "taxonomies" / "mappings" / "kc-threat-mapping.yaml"
 )
 
 
@@ -330,10 +327,7 @@ def build_pattern_provenance_index(
 # ---------------------------------------------------------------------------
 
 _ATTACK_GOALS_TAXONOMY_PATH = (
-    DATA_ROOT
-    / "taxonomies"
-    / "attack-goals"
-    / "attack-goals.json"
+    DATA_ROOT / "taxonomies" / "attack-goals" / "attack-goals.json"
 )
 
 
@@ -355,10 +349,7 @@ def load_attack_goals_taxonomy(
 # ---------------------------------------------------------------------------
 
 _THREAT_GOAL_AFFINITY_PATH = (
-    DATA_ROOT
-    / "taxonomies"
-    / "attack-goals"
-    / "threat-goal-affinity.yaml"
+    DATA_ROOT / "taxonomies" / "attack-goals" / "threat-goal-affinity.yaml"
 )
 
 

@@ -37,12 +37,7 @@ from asago_scenario_generator.data.paths import DATA_ROOT
 
 from asago_scenario_generator.models.attack_pattern import TaxonomyContext, TaxonomyPin
 
-_DEFAULT_ATLAS_PATH = (
-    DATA_ROOT
-    / "taxonomies"
-    / "atlas"
-    / "ATLAS-2026.05.yaml"
-)
+_DEFAULT_ATLAS_PATH = DATA_ROOT / "taxonomies" / "atlas" / "ATLAS-2026.05.yaml"
 _DEFAULT_MAPPING_SET_DIR = DATA_ROOT / "taxonomies" / "attack-patterns"
 _MAPPING_SET_GLOB = "attack-patterns*.sssom.tsv"
 _EXPECTED_MAPPING_SET_FILES = frozenset(
