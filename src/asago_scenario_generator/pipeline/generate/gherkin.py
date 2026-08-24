@@ -100,7 +100,7 @@ class CompactCall3Response(Call3Response):
 
 # Step kinds derived from action discriminator, not labels.
 _STEP_KIND_GIVEN = "given"  # external_precondition
-_STEP_KIND_WHEN = "when"  # initial_ingress, ai_system_action, tool_invocation, integration_interaction
+_STEP_KIND_WHEN = "when"  # ingress, attacker/system actions, tools, integrations
 _STEP_KIND_THEN = "then"  # impact
 
 
@@ -857,7 +857,7 @@ def _call3_response_to_behavior_spec(
         for a in response.assertions
     )
 
-    from asago_scenario_generator.pipeline.generate.assembly import (
+    from asago_scenario_generator.pipeline.generate.behavior_compiler import (
         render_gherkin_from_behavior_spec,
     )
 

@@ -1200,43 +1200,13 @@ def _count_compatible_combinations(
     return total
 
 
-def _coverage_first_combinations(
-    options: tuple[tuple[CanonicalResourceReference, ...], ...], limit: int
-) -> tuple[tuple[CanonicalResourceReference, ...], ...]:
-    """Cover each slot's alternatives before bounded Cartesian fill."""
-    seen: set[tuple[str, ...]] = set()
-    ordered: list[tuple[CanonicalResourceReference, ...]] = []
-
-    def add(items: tuple[CanonicalResourceReference, ...]) -> None:
-        key = tuple(_resource_key(item) for item in items)
-        if key not in seen and len(ordered) < limit:
-            seen.add(key)
-            ordered.append(items)
-
-    baseline = tuple(slot[0] for slot in options)
-    add(baseline)
-    for offset in range(1, max(len(slot) for slot in options)):
-        for slot_index, slot in enumerate(options):
-            if offset < len(slot):
-                variant = list(baseline)
-                variant[slot_index] = slot[offset]
-                add(tuple(variant))
-    if len(ordered) < limit:
-        for combination in product(*options):
-            add(combination)
-            if len(ordered) == limit:
-                break
-    return tuple(ordered)
-
-
 def _iter_coverage_first_combinations(
     options: tuple[tuple[CanonicalResourceReference, ...], ...],
 ) -> Iterable[tuple[CanonicalResourceReference, ...]]:
     """Lazily yield coverage-first combinations without materializing the product.
 
-    Identical ordering to :func:`_coverage_first_combinations` but yields
-    one combination at a time so the caller can stop early when the budget
-    is reached.  The full Cartesian product is never materialized.
+    Callers stop early when the budget is reached; the full Cartesian
+    product is never materialized.
 
     Ordering:
     1. The baseline (slot[0] for every slot).
@@ -1848,594 +1818,84 @@ def project_authoritative_candidates(
     feasible coverage targets, reservation is best-effort and the caller
     should emit a ``selection_limitation`` for uncovered targets.
     """
-    if not isinstance(records, Sequence) or isinstance(records, (str, bytes, dict)):
-        raise TypeError("authoritative projection requires a sequence of raw records")
-    budget = budget or ProjectionBudget()
+    _authoritative_records_type_check(records)
+    budget = _resolve_projection_budget(budget)
     snapshot.assert_integrity()
-    qualified: list[tuple[AttackPattern, str]] = []
-    for raw in records:
-        if not isinstance(raw, dict) or "canonical_chain" not in raw:
-            raise ValueError(
-                "authoritative projection requires qualified canonical-chain records; "
-                "legacy catalogue records are isolated"
-            )
-        try:
-            pattern = validate_attack_pattern(raw, taxonomy_resolver)
-            pattern = AttackPattern.model_validate(
-                _normalize_semantic_order(pattern.model_dump(mode="json"))
-            )
-        except (TypeError, ValueError) as exc:
-            raise ValueError(
-                f"authoritative attack pattern qualification failed: {exc}"
-            ) from exc
-        qualified.append((pattern, _pattern_pin(pattern)))
-    by_pattern: dict[str, tuple[AttackPattern, str]] = {}
-    for item in qualified:
-        pattern, pattern_pin = item
-        previous = by_pattern.get(pattern.id)
-        if previous is not None and previous[1] != pattern_pin:
-            raise ValueError("conflicting authoritative records share one pattern id")
-        by_pattern[pattern.id] = item
-    qualified = [by_pattern[key] for key in sorted(by_pattern)]
-    catalog_pin = _content_pin(
-        "asago-scenario-generator:authoritative-catalog:v1",
-        [pattern_pin for _, pattern_pin in qualified],
-    )
-
-    candidate_groups: list[tuple[str, int, list[ProjectedCandidate]]] = []
+    qualified = _qualify_authoritative_records(records, taxonomy_resolver)
+    catalog_pin = _catalog_content_pin(qualified)
+    candidate_groups: list[_PatternProjectionState] = []
     issues: list[ProjectionIssue] = []
-    limitations: list[ProjectionLimitation] = []
-
     for pattern, pattern_pin in qualified:
-        chain = pattern.canonical_chain
-        prerequisites = pattern.prerequisite_capabilities
-        missing_zones = sorted(
-            set(prerequisites.min_zones) - set(snapshot.profile.zones_active)
+        _project_authoritative_pattern(
+            pattern, pattern_pin, snapshot, catalog_pin, candidate_groups, issues
         )
-        kc_requires = prerequisites.kc_requires
-        profile_kc = set(snapshot.profile.kc_subcodes)
-        missing_all = sorted(set(kc_requires.all) - profile_kc) if kc_requires else []
-        any_satisfied = (
-            not kc_requires
-            or not kc_requires.any
-            or bool(set(kc_requires.any) & profile_kc)
-        )
-        if missing_zones or missing_all or not any_satisfied:
-            details = []
-            if missing_zones:
-                details.append(f"missing zones: {', '.join(missing_zones)}")
-            if missing_all:
-                details.append(f"missing required KC codes: {', '.join(missing_all)}")
-            if not any_satisfied and kc_requires:
-                details.append(
-                    "requires any KC code from: " + ", ".join(sorted(kc_requires.any))
-                )
-            issues.append(
-                ProjectionIssue(
-                    code="incompatible_profile",
-                    pattern_id=pattern.id,
-                    detail="; ".join(details),
-                )
-            )
-            continue
-
-        condition_results = _evaluate_projection_conditions(pattern, snapshot)
-        unknown = [item for item in condition_results if item.result == "unknown"]
-        if unknown:
-            issues.append(
-                ProjectionIssue(
-                    code="unresolved_condition",
-                    pattern_id=pattern.id,
-                    step_id=unknown[0].condition_step_id,
-                    detail="one or more authoritative condition facts are unresolved",
-                    condition_results=condition_results,
-                )
-            )
-            continue
-        result_by_step = {
-            item.condition_step_id: item.result for item in condition_results
-        }
-        selected = tuple(
-            step.step_id
-            for step in chain.steps
-            if step.requirement == "required" or result_by_step[step.step_id] == "true"
-        )
-        if chain.steps[-1].step_id not in selected or not any(
-            step.attacker_controlled and step.step_id in set(selected)
-            for step in chain.steps
-        ):
-            issues.append(
-                ProjectionIssue(
-                    code="inapplicable_projection",
-                    pattern_id=pattern.id,
-                    detail=(
-                        "condition results omit the terminal outcome or every "
-                        "attacker-controlled step"
-                    ),
-                    condition_results=condition_results,
-                )
-            )
-            continue
-        omissions = tuple(
-            StepOmission(step_id=step.step_id, reason="condition_false")
-            for step in chain.steps
-            if step.requirement == "conditional"
-            and result_by_step[step.step_id] == "false"
-        )
-        precondition_results = _evaluate_preconditions(pattern, selected, snapshot)
-        unresolved_preconditions = [
-            item for item in precondition_results if item.result == "unknown"
-        ]
-        if unresolved_preconditions:
-            issues.append(
-                ProjectionIssue(
-                    code="unresolved_condition",
-                    pattern_id=pattern.id,
-                    step_id=unresolved_preconditions[0].step_id,
-                    detail="one or more selected-step preconditions are unresolved",
-                    condition_results=condition_results,
-                    precondition_results=precondition_results,
-                )
-            )
-            continue
-        false_preconditions = [
-            item for item in precondition_results if item.result == "false"
-        ]
-        if false_preconditions:
-            issues.append(
-                ProjectionIssue(
-                    code="precondition_not_satisfied",
-                    pattern_id=pattern.id,
-                    step_id=false_preconditions[0].step_id,
-                    detail="one or more selected-step preconditions are false",
-                    condition_results=condition_results,
-                    precondition_results=precondition_results,
-                )
-            )
-            continue
-
-        ingress_index = next(
-            index
-            for index, slot in enumerate(chain.resource_slots)
-            if slot.slot_id == chain.initial_ingress_slot_id
-        )
-        option_sets: list[tuple[CanonicalResourceReference, ...]] = []
-        missing_slots = []
-        for slot in chain.resource_slots:
-            options = _references_for_slot(
-                slot,
-                snapshot,
-                initial_ingress=slot.slot_id == chain.initial_ingress_slot_id,
-            )
-            option_sets.append(options)
-            if not options:
-                missing_slots.append(slot)
-        if missing_slots:
-            relation_links = [
-                link
-                for step in chain.steps
-                if step.step_id in set(selected)
-                for link in step.resource_links
-                if link.role == "source_influence"
-            ]
-            relation_slot_ids = (
-                {link.slot_id for link in relation_links}
-                | {str(link.trust_boundary_slot_id) for link in relation_links}
-                | {str(link.target_ingress_slot_id) for link in relation_links}
-            )
-            relation_has_explicit_ids = any(
-                item.allowed_resource_ids
-                for item in chain.resource_slots
-                if item.slot_id in relation_slot_ids
-            )
-            for slot in missing_slots:
-                if (
-                    slot.slot_id not in relation_slot_ids
-                    or not relation_has_explicit_ids
-                ):
-                    issues.append(
-                        ProjectionIssue(
-                            code="missing_compatible_resource",
-                            pattern_id=pattern.id,
-                            slot_id=slot.slot_id,
-                            detail=f"no compatible canonical {slot.kind} resource for slot",
-                        )
-                    )
-                    continue
-                link = relation_links[0]
-                source_slot = next(
-                    item
-                    for item in chain.resource_slots
-                    if item.slot_id == link.slot_id
-                )
-                ingress_options = option_sets[ingress_index] if option_sets else ()
-                target_id = (
-                    _resource_id(ingress_options[0])
-                    if ingress_options
-                    else next(
-                        iter(
-                            next(
-                                (
-                                    item.allowed_resource_ids
-                                    for item in chain.resource_slots
-                                    if item.slot_id == str(link.target_ingress_slot_id)
-                                ),
-                                (),
-                            )
-                        ),
-                        None,
-                    )
-                )
-                target = (
-                    snapshot.profile.resolve_entry_point(target_id)
-                    if isinstance(target_id, str)
-                    else None
-                )
-                source_ids = source_slot.allowed_resource_ids
-                boundary_slot = next(
-                    item
-                    for item in chain.resource_slots
-                    if item.slot_id == str(link.trust_boundary_slot_id)
-                )
-                boundary_id = next(iter(boundary_slot.allowed_resource_ids), None)
-                source_id = next(iter(source_ids), None)
-                issues.append(
-                    ProjectionIssue(
-                        code="source_influence_relation_infeasible",
-                        pattern_id=pattern.id,
-                        slot_id=slot.slot_id,
-                        detail="source-influence relation resource is not reviewed",
-                        source_id=source_id,
-                        boundary_id=boundary_id,
-                        target_ingress_id=target_id,
-                        canonical_ingress_id=target_id,
-                        expected_target_zone=(
-                            target.effective_ingress_zone
-                            if target is not None
-                            else None
-                        ),
-                        actual_boundary_zones="unreviewed",
-                        expected_source_kind=(
-                            link.source_identity_kind or source_slot.kind
-                        ),
-                        actual_binding_kind=source_slot.kind,
-                        guidance=(
-                            "Review the explicit ingress_zone or trust-boundary "
-                            "declaration."
-                        ),
-                    )
-                )
-            continue
-
-        direct_ingress_options = tuple(
-            option
-            for option in option_sets[ingress_index]
-            if isinstance(option, EntryPointResourceReference)
-            and snapshot.profile.resolve_entry_point(
-                option.entry_point_id
-            ).effective_controllability
-            == "direct"
-        )
-        # A source-influence chain activates through an explicit
-        # source-boundary → canonical-ingress edge, not direct ingress
-        # control, so indirect ingress entry points are admissible.  A
-        # direct-ingress chain still requires a directly controllable
-        # ingress; indirect ingress there fails closed.
-        # Activation is checked only over SELECTED steps: a conditional
-        # activation step may be omitted, and the chain must still have
-        # an activatable mechanism among the remaining selected steps.
-        selected_set = set(selected)
-        has_source_influence_activation = any(
-            link.role == "source_influence"
-            and link.target_ingress_slot_id == chain.initial_ingress_slot_id
-            for step in chain.steps
-            if step.step_id in selected_set
-            for link in step.resource_links
-        )
-        has_direct_ingress_activation = any(
-            link.role == "ingress" and link.slot_id == chain.initial_ingress_slot_id
-            for step in chain.steps
-            if step.step_id in selected_set
-            for link in step.resource_links
-        )
-        if not has_source_influence_activation and not has_direct_ingress_activation:
-            issues.append(
-                ProjectionIssue(
-                    code="unsupported_requirement_derivation",
-                    pattern_id=pattern.id,
-                    detail=(
-                        "no activation mechanism (ingress or source_influence) "
-                        "among selected steps"
-                    ),
-                )
-            )
-            continue
-        if has_source_influence_activation and has_direct_ingress_activation:
-            issues.append(
-                ProjectionIssue(
-                    code="unsupported_requirement_derivation",
-                    pattern_id=pattern.id,
-                    detail=(
-                        "contradictory activation: selected steps contain both "
-                        "direct ingress and source_influence links to the "
-                        "initial ingress"
-                    ),
-                )
-            )
-            continue
-        if has_source_influence_activation:
-            if not option_sets[ingress_index]:
-                continue
-        else:
-            if len(direct_ingress_options) != len(option_sets[ingress_index]):
-                issues.append(
-                    ProjectionIssue(
-                        code="unsupported_requirement_derivation",
-                        pattern_id=pattern.id,
-                        detail=(
-                            "indirect ingress requires explicit upstream-source and "
-                            "trust-boundary linkage"
-                        ),
-                    )
-                )
-            if not direct_ingress_options:
-                continue
-            option_sets[ingress_index] = direct_ingress_options
-
-        total_bindings = _count_compatible_combinations(
-            chain.resource_slots, tuple(option_sets)
-        )
-        if total_bindings == 0:
-            constrained_slot = next(
-                slot for slot in chain.resource_slots if slot.distinct_from_slot_ids
-            )
-            issues.append(
-                ProjectionIssue(
-                    code="missing_compatible_resource",
-                    pattern_id=pattern.id,
-                    slot_id=constrained_slot.slot_id,
-                    detail=(
-                        "no concrete resource assignment satisfies explicit "
-                        "per-slot distinctness constraints"
-                    ),
-                )
-            )
-            continue
-
-        # cmps.4 blocker 3 (corrected): Do NOT eagerly materialize all
-        # Cartesian combinations.  Store the lazy iterator and pattern
-        # metadata so candidates are built on demand during reservation
-        # and bounded variant fill.  The full product is never materialized.
-        combination_iter = _iter_compatible_combinations(
-            chain.resource_slots, tuple(option_sets)
-        )
-        pattern_state = _PatternProjectionState(
-            pattern_id=pattern.id,
-            chain=chain,
-            selected=selected,
-            condition_results=condition_results,
-            omissions=omissions,
-            option_sets=tuple(option_sets),
-            total_bindings=total_bindings,
-            catalog_pin=catalog_pin,
-            pattern_pin=pattern_pin,
-            precondition_results=precondition_results,
-            combination_iter=combination_iter,
-            snapshot=snapshot,
-        )
-        candidate_groups.append(pattern_state)
-
-    # Bounded, lazy allocation.  Every derivation consumes exactly one work
-    # unit, including structural rejects; no helper may scan an iterator.
-    # Candidates discovered during target reservation are kept pending, so a
-    # later variant fill cannot silently discard a feasible candidate.
-    by_identity: dict[str, ProjectedCandidate] = {}
-    pending: list[tuple[int, ProjectedCandidate]] = []
-    emitted_by_group = [0] * len(candidate_groups)
-    derived_candidate_ids: list[set[str]] = [set() for _ in candidate_groups]
-    work_used = 0
-    work_exhausted = False
-
-    def derive_one(
-        group_index: int, iterator: Any
-    ) -> tuple[ProjectedCandidate | None, bool, bool]:
-        """Derive at most one combination.
-
-        Returns ``(candidate, is_unique, exhausted)``.  A candidate reached
-        through both a target-pinned iterator and the generic iterator is
-        one derived candidate, not two budget-truncated candidates.
-        """
-        nonlocal work_used, work_exhausted
-        if work_used >= budget.max_derivation_work:
-            work_exhausted = True
-            return None, False, True
-        try:
-            resources = next(iterator)
-        except StopIteration:
-            return None, False, True
-        work_used += 1
-        state = candidate_groups[group_index]
-        candidate, issue = _build_candidate_from_combination(
-            state.pattern_id,
-            state.chain,
-            state.selected,
-            state.condition_results,
-            state.omissions,
-            resources,
-            state.catalog_pin,
-            state.pattern_pin,
-            state.precondition_results,
-            state.snapshot,
-        )
-        if issue is not None:
-            issues.append(issue)
-        if candidate is not None:
-            is_unique = candidate.candidate_id not in derived_candidate_ids[group_index]
-            if is_unique:
-                derived_candidate_ids[group_index].add(candidate.candidate_id)
-                state.generated.append(candidate)
-            return candidate, is_unique, False
-        return None, False, False
-
-    def emit(group_index: int, candidate: ProjectedCandidate) -> None:
-        previous = by_identity.get(candidate.candidate_id)
-        if previous is not None and previous != candidate:
-            raise ValueError("candidate-v2 identity collision")
-        if previous is None and len(by_identity) < budget.max_candidates:
-            by_identity[candidate.candidate_id] = candidate
-            emitted_by_group[group_index] += 1
-
-    target_to_first_candidate: dict[str, tuple[int, ProjectedCandidate]] = {}
-    unresolved_targets: set[str] = set()
-    if coverage_target_ids:
-        # Pin the ingress slot to each sorted target, then derive a
-        # coverage-first baseline for the other slots.  This independently
-        # reserves every target; a pattern with 3+ ingresses is not limited
-        # by prior generic iterator passes.
-        for target_id in sorted(coverage_target_ids):
-            target_found = False
-            for group_index, state in enumerate(candidate_groups):
-                ingress_index = next(
-                    index
-                    for index, slot in enumerate(state.chain.resource_slots)
-                    if slot.slot_id == state.chain.initial_ingress_slot_id
-                )
-                target_ref = next(
-                    (
-                        ref
-                        for ref in state.option_sets[ingress_index]
-                        if isinstance(ref, EntryPointResourceReference)
-                        and ref.entry_point_id == target_id
-                    ),
-                    None,
-                )
-                if target_ref is None:
-                    continue
-                target_options = list(state.option_sets)
-                target_options[ingress_index] = (target_ref,)
-                target_iter = iter(
-                    _iter_compatible_combinations(
-                        state.chain.resource_slots, tuple(target_options)
-                    )
-                )
-                while True:
-                    candidate, is_unique, exhausted = derive_one(
-                        group_index, target_iter
-                    )
-                    if work_exhausted:
-                        break
-                    if candidate is not None:
-                        if is_unique:
-                            pending.append((group_index, candidate))
-                        target_to_first_candidate[target_id] = (group_index, candidate)
-                        target_found = True
-                        break
-                    if exhausted:
-                        break
-                if target_found or work_exhausted:
-                    break
-            if not target_found:
-                if work_exhausted:
-                    unresolved_targets.add(target_id)
-                else:
-                    unresolved_targets.add(target_id)
-
-        infeasible_coverage_targets = tuple(
-            sorted(unresolved_targets) if not work_exhausted else ()
-        )
-        unknown_coverage_targets = set(unresolved_targets) if work_exhausted else set()
-        for target_id in sorted(target_to_first_candidate):
-            group_index, candidate = target_to_first_candidate[target_id]
-            emit(group_index, candidate)
-    else:
-        infeasible_coverage_targets = ()
-        unknown_coverage_targets: set[str] = set()
-
-    # Emit every already-derived pending candidate before deriving variants.
-    pending_index = 0
-    while pending_index < len(pending) and len(by_identity) < budget.max_candidates:
-        group_index, candidate = pending[pending_index]
-        pending_index += 1
-        emit(group_index, candidate)
-
-    # Round-robin variant fill.  Each call derives one combination, so work
-    # remains hard-bounded even for enormous structurally-rejected products.
-    while len(by_identity) < budget.max_candidates and not work_exhausted:
-        progressed = False
-        for group_index, state in enumerate(candidate_groups):
-            candidate, _, exhausted = derive_one(group_index, state._iter)
-            if candidate is not None:
-                emit(group_index, candidate)
-                progressed = True
-            elif not exhausted:
-                progressed = True
-            if len(by_identity) >= budget.max_candidates or work_exhausted:
-                break
-        if not progressed:
-            break
-
-    # A single bounded probe may establish a real candidate-output truncation;
-    # it never scans the remaining Cartesian product.
-    if len(by_identity) >= budget.max_candidates and not pending[pending_index:]:
-        for group_index, state in enumerate(candidate_groups):
-            candidate, is_unique, _ = derive_one(group_index, state._iter)
-            if (candidate is not None and is_unique) or work_exhausted:
-                break
-
-    if coverage_target_ids:
-        emitted_target_ids = {
-            candidate.canonical_ingress.entry_point_id
-            for candidate in by_identity.values()
-        }
-        unreserved_targets = tuple(
-            sorted(
-                (set(target_to_first_candidate) | unknown_coverage_targets)
-                - emitted_target_ids
-            )
-        )
-    else:
-        unreserved_targets = ()
-
-    for group_index, state in enumerate(candidate_groups):
-        if state.emitted > emitted_by_group[group_index]:
-            limitations.append(
-                ProjectionLimitation(
-                    code="candidate_budget_exhausted",
-                    pattern_id=state.pattern_id,
-                    total_compatible_bindings=state.total_bindings,
-                    emitted_bindings=emitted_by_group[group_index],
-                )
-            )
-    if work_exhausted:
-        limitations.extend(
-            ProjectionLimitation(
-                code="derivation_work_exhausted",
-                pattern_id=state.pattern_id,
-                total_compatible_bindings=state.total_bindings,
-                emitted_bindings=emitted_by_group[group_index],
-            )
-            for group_index, state in enumerate(candidate_groups)
-        )
-    unique_issues = {
-        _canonical_json(issue.model_dump(mode="json")): issue for issue in issues
-    }
+    allocator = _AuthoritativeCandidateAllocator(
+        budget, candidate_groups, issues, coverage_target_ids
+    )
+    allocator.reserve_coverage_targets()
+    allocator.emit_reserved_targets()
+    allocator.emit_pending()
+    allocator.fill_round_robin()
+    allocator.probe_truncation()
     return ProjectionBatch(
         capability_fact_snapshot_digest=snapshot.snapshot_digest,
-        candidates=tuple(by_identity[key] for key in sorted(by_identity)),
-        infeasibilities=tuple(
-            sorted(
-                unique_issues.values(),
-                key=lambda item: (
-                    item.pattern_id,
-                    item.code,
-                    item.step_id or "",
-                    item.slot_id or "",
-                ),
-            )
-        ),
-        limitations=tuple(
-            sorted(limitations, key=lambda item: (item.pattern_id, item.code))
-        ),
-        unreserved_coverage_targets=unreserved_targets,
-        infeasible_coverage_targets=infeasible_coverage_targets,
+        candidates=_sorted_emitted_candidates(allocator.by_identity),
+        infeasibilities=_sorted_infeasibilities(issues),
+        limitations=_sorted_limitations(allocator.build_limitations()),
+        unreserved_coverage_targets=allocator.unreserved_targets(),
+        infeasible_coverage_targets=allocator.infeasible_coverage_targets(),
     )
+
+
+# Authoritative projection, qualification, and allocation machinery lives
+# in the sibling module pipeline.projection_authoritative; re-export it
+# here so every existing import path keeps working.
+from asago_scenario_generator.pipeline.projection_authoritative import (  # noqa: E402
+    _resolve_projection_budget as _resolve_projection_budget,
+    _catalog_content_pin as _catalog_content_pin,
+    _sorted_emitted_candidates as _sorted_emitted_candidates,
+    _infeasibility_key as _infeasibility_key,
+    _sorted_infeasibilities as _sorted_infeasibilities,
+    _limitation_key as _limitation_key,
+    _sorted_limitations as _sorted_limitations,
+    _authoritative_records_type_check as _authoritative_records_type_check,
+    _qualify_authoritative_pattern as _qualify_authoritative_pattern,
+    _resolve_qualified_patterns as _resolve_qualified_patterns,
+    _qualify_authoritative_records as _qualify_authoritative_records,
+    _profile_compatibility_gaps as _profile_compatibility_gaps,
+    _incompatible_profile_issue as _incompatible_profile_issue,
+    _profile_gate_failure_issue as _profile_gate_failure_issue,
+    _results_contain_unknown as _results_contain_unknown,
+    _results_contain_false as _results_contain_false,
+    _unresolved_condition_issue as _unresolved_condition_issue,
+    _unresolved_precondition_issue as _unresolved_precondition_issue,
+    _false_precondition_issue as _false_precondition_issue,
+    _inapplicable_projection_issue as _inapplicable_projection_issue,
+    _select_conditionally_required_steps as _select_conditionally_required_steps,
+    _projection_is_applicable as _projection_is_applicable,
+    _omitted_conditional_steps as _omitted_conditional_steps,
+    _precondition_results_or_none as _precondition_results_or_none,
+    _profile_and_condition_gate as _profile_and_condition_gate,
+    _qualified_condition_state as _qualified_condition_state,
+    _ingress_slot_index as _ingress_slot_index,
+    _gather_slot_options as _gather_slot_options,
+    _source_influence_relation_links as _source_influence_relation_links,
+    _relation_slot_ids as _relation_slot_ids,
+    _source_influence_relation_state as _source_influence_relation_state,
+    _check_simple_missing_slot as _check_simple_missing_slot,
+    _slot_by_id as _slot_by_id,
+    _source_influence_target_id as _source_influence_target_id,
+    _source_influence_failure_issue as _source_influence_failure_issue,
+    _record_missing_slot_issues as _record_missing_slot_issues,
+    _direct_ingress_options as _direct_ingress_options,
+    _has_source_influence_activation as _has_source_influence_activation,
+    _has_direct_ingress_activation as _has_direct_ingress_activation,
+    _no_activation_violation as _no_activation_violation,
+    _resolve_ingress_activation as _resolve_ingress_activation,
+    _zero_bindings_issue as _zero_bindings_issue,
+    _assemble_pattern_state as _assemble_pattern_state,
+    _project_authoritative_pattern as _project_authoritative_pattern,
+    _target_ingress_reference as _target_ingress_reference,
+    _dedupe_projection_issues as _dedupe_projection_issues,
+    _AuthoritativeCandidateAllocator as _AuthoritativeCandidateAllocator,
+)

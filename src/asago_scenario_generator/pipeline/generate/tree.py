@@ -55,9 +55,6 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "_check_tool_execution_leaf_grounding",
     "_enumerate_root_to_leaf_paths",
-    "_parse_attack_tree_yaml",
-    "_validate_pinned_ingress",
-    "_validate_tree_against_projection",
     "normalize_attack_tree_transport",
 ]
 
@@ -650,7 +647,6 @@ def _call_attack_tree_once(
             invoked=True,
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            request_controls=getattr(client, "request_controls", None),
         ) from exc
     try:
         if semantic_leaf_specs is not None and not isinstance(result.content, str):
@@ -704,7 +700,6 @@ def _call_attack_tree_once(
             user_prompt=user_prompt,
             result=result,
             raw_response=result.content,
-            request_controls=getattr(client, "request_controls", None),
         ) from exc
     return tree, result
 

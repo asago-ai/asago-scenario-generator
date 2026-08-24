@@ -1,4 +1,5 @@
-"""Architecture and property checks for taxonomy Call 0 modules."""
+"""Architecture and property checks for taxonomy Call 0 modules and the
+deterministic behavior compiler."""
 
 from __future__ import annotations
 
@@ -136,3 +137,100 @@ def test_compatible_actor_policy_preserves_a_nonempty_known_set(
     )
     assert compatible
     assert compatible <= set(ALL_ACTOR_TYPES)
+
+
+class TestActorSemanticLeafBoundaries:
+    """Actor semantics/access leaves stay pure and dependency-inward."""
+
+    _MODULES = (
+        "actor_semantics.py",
+        "actor_access.py",
+    )
+    _FORBIDDEN_IO_NEAR_PREFIXES = (
+        "asago_scenario_generator.llm",
+        "asago_scenario_generator.prompts",
+        "asago_scenario_generator.manifest",
+        "asago_scenario_generator.report",
+        "asago_scenario_generator.cli",
+        "asago_scenario_generator.stpa",
+        "asago_scenario_generator.pipeline.generate.actor",
+    )
+
+    def test_actor_semantic_leaves_do_not_import_io_near_or_facade_modules(
+        self,
+    ) -> None:
+        """The compiler leaves stay free of IO, prompts, UI, STPA, and cycles."""
+        for module in self._MODULES:
+            imports = _imported_modules(GENERATE_DIR / module)
+            violations = [
+                imp
+                for imp in imports
+                if any(
+                    imp == forbidden or imp.startswith(forbidden + ".")
+                    for forbidden in self._FORBIDDEN_IO_NEAR_PREFIXES
+                )
+            ]
+            assert not violations, (
+                f"{module} imports forbidden modules: {sorted(violations)}"
+            )
+
+    def test_actor_semantic_leaves_reach_only_shared_policy_siblings(self) -> None:
+        """The leaves may only couple to pure policy siblings, never orchestration."""
+        for module in self._MODULES:
+            imports = _imported_modules(GENERATE_DIR / module)
+            allowed_siblings = {
+                "asago_scenario_generator.pipeline.generate.actor_rules",
+                "asago_scenario_generator.pipeline.generate.constants",
+                "asago_scenario_generator.pipeline.generate.names",
+            }
+            siblings = {
+                imp
+                for imp in imports
+                if imp.startswith("asago_scenario_generator.pipeline.generate.")
+            }
+            assert siblings <= allowed_siblings, (
+                f"{module} reaches orchestration siblings: {sorted(siblings)}"
+            )
+
+
+class TestBehaviorCompilerBoundary:
+    """The deterministic behavior compiler is a pure, dependency-inward leaf."""
+
+    _FORBIDDEN_IO_NEAR_PREFIXES = (
+        "asago_scenario_generator.llm",
+        "asago_scenario_generator.prompts",
+        "asago_scenario_generator.manifest",
+        "asago_scenario_generator.report",
+        "asago_scenario_generator.cli",
+        "asago_scenario_generator.stpa",
+    )
+
+    def test_behavior_compiler_does_not_import_io_near_modules(self) -> None:
+        """The pure compiler must stay free of IO, prompts, UI, and STPA."""
+        imports = _imported_modules(GENERATE_DIR / "behavior_compiler.py")
+        violations = [
+            imp
+            for imp in imports
+            if any(
+                imp == forbidden or imp.startswith(forbidden + ".")
+                for forbidden in self._FORBIDDEN_IO_NEAR_PREFIXES
+            )
+        ]
+        assert not violations, (
+            f"behavior_compiler imports IO-near modules: {sorted(violations)}"
+        )
+
+    def test_behavior_compiler_does_not_import_generate_siblings(self) -> None:
+        """No dependency back into generate/ orchestration (no import cycles)."""
+        imports = _imported_modules(GENERATE_DIR / "behavior_compiler.py")
+        siblings = [
+            imp
+            for imp in imports
+            if imp.startswith("asago_scenario_generator.pipeline.generate.")
+        ]
+        assert not siblings, (
+            f"behavior_compiler imports generate siblings: {sorted(siblings)}"
+        )
+        # IO-near assembly and the semantics validators may import the
+        # compiler; the compiler itself only reaches shared tree helpers.
+        assert "asago_scenario_generator.pipeline.projection_realizations" in imports

@@ -44,6 +44,11 @@ file is ignored because it may contain credentials. Both `generate` and
 `stpa-run` accept named profiles; explicit endpoint/model options override the
 selected profile.
 
+Gemma 4 deployments used for structured generation need a compact JSON grammar
+configuration to avoid valid-prefix responses stalling on whitespace. See the
+[Gemma 4 vLLM runtime notes](docs/operations/gemma4-vllm-structured-output.md)
+for the required serving argument and rollout guidance.
+
 ## Taxonomy and risk-driven generation
 
 ```bash
@@ -155,8 +160,8 @@ asago-scenario-generator validate-stpa-projection \
 
 ```bash
 ./scripts/quality.sh
-uv run pytest tests/ -q
 ./scripts/acceptance.sh
+uv run pytest tests/ -q
 ```
 
 The unit and default acceptance suites are deterministic and do not require an

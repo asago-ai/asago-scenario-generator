@@ -154,7 +154,6 @@ from asago_scenario_generator.models.scenario import (
     StructuralExposureSignal,
     TaxonomyChain,
     TechniqueMaturity,
-    TechniqueScopeEvidence,
 )
 from asago_scenario_generator.models.threat_scope import (
     OutOfScopeEntry,
@@ -296,7 +295,6 @@ __all__ = [
     "TaxonomyPin",
     "TaxonomyResolver",
     "TechniqueMaturity",
-    "TechniqueScopeEvidence",
     "ThreatScope",
     "ThreatScopeEntry",
     "ThreatSurface",

@@ -18,11 +18,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from asago_scenario_generator.models import ThreatSurface
 from asago_scenario_generator.models.capability_profile import (
     CapabilityProfile,
     is_attacker_accessible_ingress,
 )
+from asago_scenario_generator.models import ThreatSurface
 from asago_scenario_generator.models.scenario import ScenarioEnvelope
 from asago_scenario_generator.pipeline.coverage_planning import (
     CoverageSummary,

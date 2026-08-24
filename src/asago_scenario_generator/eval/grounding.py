@@ -150,6 +150,7 @@ def score_grounding(
                 if allowed and tech_id in allowed:
                     grounded_technique_refs += 1
                 elif not allowed:
+                    # No seed technique IDs -> any technique_id is ungrounded
                     ungrounded_techniques.append(
                         {
                             "scenario_id": scenario_id,

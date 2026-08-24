@@ -13,7 +13,6 @@ import os
 import secrets
 import stat
 import threading
-from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path, PurePosixPath
@@ -26,13 +25,8 @@ from asago_scenario_generator.manifest import (
     ArtifactEntry,
     ArtifactRole,
     ManifestIntegrityError,
-    RunStatus,
     atomic_write_text,
     build_artifact_entry,
-)
-from asago_scenario_generator.models.capability_profile import (
-    CapabilityProfile,
-    InventoryCompleteness,
 )
 from asago_scenario_generator.pipeline.coverage_planning import (
     QualifiedCandidate,
@@ -610,426 +604,44 @@ class FinalizationInventoryV1(StrictModel):
             *self.repairs,
             *self.admission_decisions,
         ]
-        event_ids = [item.event_id for item in events]
-        if len(event_ids) != len(set(event_ids)):
-            raise ValueError("duplicate durable event IDs")
-        if sorted(item.sequence for item in events) != list(range(len(events))):
-            raise ValueError("durable event sequences must be contiguous from zero")
-        for label, values in (
-            (
-                "candidate attempt",
-                [item.attempt_id for item in self.candidate_attempts],
-            ),
-            ("stage attempt", [item.attempt_id for item in self.stage_attempts]),
-            ("candidate", [item.candidate_id for item in self.candidate_attempts]),
-        ):
-            if len(values) != len(set(values)):
-                raise ValueError(f"duplicate {label} IDs")
-        transitions_by_target: dict[str, list[TransitionRecord]] = {}
-        for transition in self.transitions:
-            transitions_by_target.setdefault(
-                transition.target_entry_point_id, []
-            ).append(transition)
-        attempts_by_target: dict[str, list[CandidateAttemptRecord]] = {}
-        for attempt in self.candidate_attempts:
-            attempts_by_target.setdefault(attempt.target_entry_point_id, []).append(
-                attempt
-            )
-        if set(attempts_by_target) - set(transitions_by_target):
-            raise ValueError("each candidate attempt requires a target trace")
-        terminal_edges: dict[str, TransitionRecord] = {}
-        for target_id, target_transitions in transitions_by_target.items():
-            target_transitions.sort(key=lambda item: item.sequence)
-            if [item.index for item in target_transitions] != list(
-                range(len(target_transitions))
-            ):
-                raise ValueError("transition indexes must be contiguous per target")
-            if target_transitions[0].previous is not LifecycleState.pending:
-                raise ValueError("first target transition must start from pending")
-            for previous, current in zip(target_transitions, target_transitions[1:]):
-                if previous.current is not current.previous:
-                    raise ValueError(
-                        "transition state chain is noncontiguous per target"
-                    )
-            target_attempts = sorted(
-                attempts_by_target.get(target_id, []), key=lambda item: item.sequence
-            )
-            next_attempt = 0
-            active_candidate: str | None = None
-            seen_candidates: set[str] = set()
-            for position, transition in enumerate(target_transitions):
-                if transition.current is LifecycleState.revalidating_candidate:
-                    if (
-                        active_candidate is not None
-                        or transition.candidate_id is None
-                        or transition.candidate_id in seen_candidates
-                        or next_attempt >= len(target_attempts)
-                    ):
-                        raise ValueError("invalid or duplicate candidate trace segment")
-                    attempt = target_attempts[next_attempt]
-                    if (
-                        transition.candidate_id != attempt.candidate_id
-                        or attempt.sequence >= transition.sequence
-                    ):
-                        raise ValueError(
-                            "candidate trace does not match next durable attempt"
-                        )
-                    active_candidate = transition.candidate_id
-                    seen_candidates.add(active_candidate)
-                    next_attempt += 1
-                elif transition.current is LifecycleState.exhausted:
-                    if (
-                        transition.candidate_id is not None
-                        or position != len(target_transitions) - 1
-                        or active_candidate is not None
-                    ):
-                        raise ValueError(
-                            "target exhaustion must be candidate-free and final"
-                        )
-                else:
-                    if (
-                        active_candidate is None
-                        or transition.candidate_id != active_candidate
-                    ):
-                        raise ValueError(
-                            "lifecycle candidate changed inside an active trace"
-                        )
-                    if transition.current in {
-                        LifecycleState.admitted,
-                        LifecycleState.rejected,
-                    }:
-                        terminal_edges[active_candidate] = transition
-                        active_candidate = None
-            if next_attempt != len(target_attempts):
-                raise ValueError(
-                    "each candidate attempt requires one revalidating trace segment"
-                )
-        generating_state = {
-            GeneratedStage.actor: LifecycleState.generating_actor,
-            GeneratedStage.narrative: LifecycleState.generating_narrative,
-            GeneratedStage.tree: LifecycleState.generating_tree,
-            GeneratedStage.behavior: LifecycleState.generating_behavior,
-        }
-        active = {
-            LifecycleState.generating_actor,
-            LifecycleState.generating_narrative,
-            LifecycleState.generating_tree,
-            LifecycleState.finalizing_prebehavior,
-            LifecycleState.generating_behavior,
-            LifecycleState.admitting,
-        }
-        legal_edges = {
-            (LifecycleState.pending, LifecycleState.revalidating_candidate),
-            (LifecycleState.pending, LifecycleState.exhausted),
-            (LifecycleState.rejected, LifecycleState.revalidating_candidate),
-            (LifecycleState.rejected, LifecycleState.exhausted),
-            (LifecycleState.revalidating_candidate, LifecycleState.generating_actor),
-            (LifecycleState.revalidating_candidate, LifecycleState.rejected),
-            (LifecycleState.generating_actor, LifecycleState.generating_narrative),
-            (LifecycleState.generating_narrative, LifecycleState.generating_tree),
-            (LifecycleState.generating_tree, LifecycleState.finalizing_prebehavior),
-            (LifecycleState.finalizing_prebehavior, LifecycleState.generating_behavior),
-            (LifecycleState.generating_behavior, LifecycleState.admitting),
-            (LifecycleState.admitting, LifecycleState.admitted),
-            (LifecycleState.admitting, LifecycleState.rejected),
-        }
-        legal_edges.update(
-            (source, destination)
-            for source in active
-            for destination in generating_state.values()
+        _check_durable_event_ids(events)
+        _check_durable_event_sequences(events)
+        _check_unique_attempt_and_candidate_ids(
+            self.candidate_attempts, self.stage_attempts
         )
-        legal_edges.update((source, LifecycleState.rejected) for source in active)
-        for transition in sorted(self.transitions, key=lambda item: item.sequence):
-            if (transition.previous, transition.current) not in legal_edges:
-                raise ValueError(
-                    f"illegal lifecycle edge {transition.previous.value}->{transition.current.value}"
-                )
-        stage_by_id = {item.attempt_id: item for item in self.stage_attempts}
-        referenced_stage_ids: set[str] = set()
-        for attempt in self.candidate_attempts:
-            for stage_id in attempt.stage_attempt_ids:
-                stage = stage_by_id.get(stage_id)
-                if stage is None or stage.candidate_id != attempt.candidate_id:
-                    raise ValueError(
-                        "candidate attempt references an invalid stage attempt"
-                    )
-                referenced_stage_ids.add(stage_id)
-        if referenced_stage_ids != set(stage_by_id):
-            raise ValueError(
-                "stage attempts and candidate references must match exactly"
-            )
-        attempts_by_id = {item.attempt_id: item for item in self.candidate_attempts}
-        for repair in self.repairs:
-            attempt = attempts_by_id.get(repair.candidate_attempt_id)
-            if (
-                attempt is None
-                or repair.candidate_id != attempt.candidate_id
-                or repair.target_entry_point_id != attempt.target_entry_point_id
-            ):
-                raise ValueError("repair record does not match its candidate attempt")
-            subsequent_behavior_inputs = [
-                item.final_tree_snapshot_sha256
-                for item in self.stage_attempts
-                if item.candidate_id == repair.candidate_id
-                and item.stage is GeneratedStage.behavior
-                and item.sequence > repair.sequence
-            ]
-            if (
-                subsequent_behavior_inputs
-                and repair.after_digest not in subsequent_behavior_inputs
-            ):
-                raise ValueError(
-                    "repair output is not bound to behavior final-tree input"
-                )
-        by_candidate_stage: dict[
-            tuple[str, GeneratedStage], list[StageAttemptRecord]
-        ] = {}
-        for item in self.stage_attempts:
-            by_candidate_stage.setdefault((item.candidate_id, item.stage), []).append(
-                item
-            )
-        for records in by_candidate_stage.values():
-            records.sort(key=lambda item: item.invocation_index)
-            if [item.invocation_index for item in records] != list(range(len(records))):
-                raise ValueError("stage invocation indexes must be contiguous")
-            if any(
-                right.owner_retry_index < left.owner_retry_index
-                for left, right in zip(records, records[1:])
-            ):
-                raise ValueError("stage owner retry indexes must be monotonic")
-        for attempt in self.candidate_attempts:
-            generating_transitions = sorted(
-                (
-                    item
-                    for item in self.transitions
-                    if item.candidate_id == attempt.candidate_id
-                    and item.current in set(generating_state.values())
-                ),
-                key=lambda item: item.sequence,
-            )
-            ordered_stage_attempts = sorted(
-                (
-                    item
-                    for item in self.stage_attempts
-                    if item.candidate_id == attempt.candidate_id
-                ),
-                key=lambda item: item.sequence,
-            )
-            if len(generating_transitions) not in {
-                len(ordered_stage_attempts),
-                len(ordered_stage_attempts) + 1,
-            }:
-                raise ValueError(
-                    "generating transitions must correspond 1:1 to stage attempts"
-                )
-            if len(generating_transitions) == len(ordered_stage_attempts) + 1:
-                unmatched = generating_transitions[-1]
-                later_candidate_events = [
-                    item
-                    for item in [
-                        *self.transitions,
-                        *self.stage_attempts,
-                        *self.repairs,
-                        *self.admission_decisions,
-                    ]
-                    if item.candidate_id == attempt.candidate_id
-                    and item.sequence > unmatched.sequence
-                ]
-                decision = next(
-                    (
-                        item
-                        for item in self.admission_decisions
-                        if item.candidate_id == attempt.candidate_id
-                    ),
-                    None,
-                )
-                terminal = terminal_edges.get(attempt.candidate_id)
-                ordered_later = sorted(
-                    later_candidate_events, key=lambda item: item.sequence
-                )
-                exact_unknown_terminal = (
-                    terminal is not None
-                    and decision is not None
-                    and ordered_later == [terminal, decision]
-                    and terminal.previous is unmatched.current
-                    and terminal.sequence == unmatched.sequence + 1
-                    and decision.sequence == terminal.sequence + 1
-                    and decision.status
-                    is CandidateTerminalStatus.generation_or_finalization_failed
-                    and not decision.admitted
-                    and not decision.gate_results
-                    and len(decision.violations) == 1
-                    and decision.violations[0].code == "unknown_invocation_outcome"
-                    and decision.violations[0].owner is None
-                    and not decision.violations[0].retryable
-                    and len(decision.terminal_receipts) == 1
-                    and decision.terminal_receipts[0].role
-                    is ArtifactRole.QUARANTINE_BUNDLE
-                    and not any(
-                        item.sequence > unmatched.sequence
-                        for item in [*self.stage_attempts, *self.repairs]
-                        if item.candidate_id == attempt.candidate_id
-                    )
-                )
-                if later_candidate_events and not exact_unknown_terminal:
-                    raise ValueError(
-                        "unmatched generating transition permits only exact unknown-outcome terminalization"
-                    )
-            for transition, stage in zip(
-                generating_transitions, ordered_stage_attempts
-            ):
-                if (
-                    transition.current is not generating_state[stage.stage]
-                    or transition.candidate_id != stage.candidate_id
-                    or transition.sequence >= stage.sequence
-                ):
-                    raise ValueError(
-                        "generating transition/stage attempt trace mismatch"
-                    )
-        decisions = [item.candidate_id for item in self.admission_decisions]
-        if len(decisions) != len(set(decisions)):
-            raise ValueError("duplicate terminal admission decisions")
-        if set(terminal_edges) != set(decisions):
-            raise ValueError(
-                "terminal edges and admission decisions must match exactly"
-            )
-        for decision in self.admission_decisions:
-            expected = (
-                LifecycleState.admitted
-                if decision.admitted
-                else LifecycleState.rejected
-            )
-            terminal_edge = terminal_edges.get(decision.candidate_id)
-            if terminal_edge is None or terminal_edge.current is not expected:
-                raise ValueError(
-                    "admission decision requires matching admitting terminal transition"
-                )
-            candidate_stages = [
-                item
-                for item in self.stage_attempts
-                if item.candidate_id == decision.candidate_id
-            ]
-            if any(
-                item.sequence >= terminal_edge.sequence for item in candidate_stages
-            ):
-                raise ValueError("stage evidence must precede candidate terminal edge")
-            if terminal_edge.sequence >= decision.sequence:
-                raise ValueError("candidate terminal edge must precede its decision")
-            next_target_transition = next(
-                (
-                    item
-                    for item in transitions_by_target[
-                        next(
-                            attempt.target_entry_point_id
-                            for attempt in self.candidate_attempts
-                            if attempt.candidate_id == decision.candidate_id
-                        )
-                    ]
-                    if item.sequence > terminal_edge.sequence
-                ),
-                None,
-            )
-            if (
-                next_target_transition is not None
-                and decision.sequence >= next_target_transition.sequence
-            ):
-                raise ValueError(
-                    "candidate decision must precede the next target transition"
-                )
-            if (decision.admitted or decision.gate_results) and (
-                terminal_edge.previous is not LifecycleState.admitting
-            ):
-                raise ValueError(
-                    "postbehavior admission requires admitting terminal edge"
-                )
-            if (
-                terminal_edge.previous is LifecycleState.admitting
-                and not decision.gate_results
-            ):
-                raise ValueError(
-                    "admitting terminal edge requires typed admission gate evidence"
-                )
-            flattened_gate_violations = [
-                violation
-                for gate in decision.gate_results
-                for violation in gate.violations
-            ]
-            if decision.gate_results and (
-                flattened_gate_violations != decision.violations
-            ):
-                raise ValueError(
-                    "admission gate violations must match terminal violations"
-                )
-            if decision.admitted and (
-                not decision.gate_results
-                or any(not gate.passed for gate in decision.gate_results)
-                or decision.violations
-            ):
-                raise ValueError(
-                    "admitted decision requires nonempty passing gate evidence"
-                )
-            if decision.admitted:
-                candidate_stages.sort(key=lambda item: item.sequence)
-                causal = _causal_stage_artifacts(
-                    candidate_stages,
-                    candidate_attempt_id=next(
-                        item.attempt_id
-                        for item in self.candidate_attempts
-                        if item.candidate_id == decision.candidate_id
-                    ),
-                    repairs=[
-                        item
-                        for item in self.repairs
-                        if item.candidate_id == decision.candidate_id
-                    ],
-                )
-                expected_snapshots = (
-                    candidate_stages[-1].candidate_snapshot_sha256
-                    if candidate_stages
-                    else None,
-                    canonical_sha256(causal[GeneratedStage.actor])
-                    if GeneratedStage.actor in causal
-                    else None,
-                    canonical_sha256(causal[GeneratedStage.narrative])
-                    if GeneratedStage.narrative in causal
-                    else None,
-                    canonical_sha256(causal[GeneratedStage.tree])
-                    if GeneratedStage.behavior in causal
-                    else None,
-                )
-                actual_snapshots = (
-                    decision.candidate_snapshot_sha256,
-                    decision.actor_snapshot_sha256,
-                    decision.narrative_snapshot_sha256,
-                    decision.final_tree_snapshot_sha256,
-                )
-                if actual_snapshots != expected_snapshots:
-                    raise ValueError(
-                        "admission snapshot digests do not match stage evidence"
-                    )
-        decision_receipts = [
-            receipt
-            for decision in self.admission_decisions
-            for receipt in decision.terminal_receipts
-        ]
-        inventory_receipts = [
-            *self.admitted_inventory,
-            *self.quarantine_inventory,
-        ]
-        decision_receipt_keys = [
-            canonical_json_bytes(item) for item in decision_receipts
-        ]
-        inventory_receipt_keys = [
-            canonical_json_bytes(item) for item in inventory_receipts
-        ]
-        if (
-            len(decision_receipt_keys) != len(set(decision_receipt_keys))
-            or len(inventory_receipt_keys) != len(set(inventory_receipt_keys))
-            or set(decision_receipt_keys) != set(inventory_receipt_keys)
-        ):
-            raise ValueError(
-                "terminal decision receipts and finalization inventories must match exactly"
-            )
+        transitions_by_target, attempts_by_target = _index_target_trace_events(
+            self.transitions, self.candidate_attempts
+        )
+        terminal_edges = _target_trace_terminal_edges(
+            transitions_by_target, attempts_by_target
+        )
+        _check_lifecycle_edges(self.transitions)
+        _check_stage_references(self.candidate_attempts, self.stage_attempts)
+        _check_repair_records(
+            self.repairs, self.candidate_attempts, self.stage_attempts
+        )
+        _check_stage_invocation_indexes(self.stage_attempts)
+        _check_generating_transition_traces(
+            self.candidate_attempts,
+            self.transitions,
+            self.stage_attempts,
+            self.repairs,
+            self.admission_decisions,
+            terminal_edges,
+        )
+        _check_terminal_decisions(
+            self.candidate_attempts,
+            transitions_by_target,
+            self.stage_attempts,
+            self.repairs,
+            self.admission_decisions,
+            terminal_edges,
+        )
+        _check_receipt_inventories(
+            self.admission_decisions,
+            self.admitted_inventory,
+            self.quarantine_inventory,
+        )
         self._verify_event_hashes()
         return self
 
@@ -1108,65 +720,6 @@ class FinalizationInventoryV1(StrictModel):
                 ),
             }
             _verify_event(item, "candidate_result", item.candidate_id, payload)
-
-
-def _causal_stage_artifacts(
-    records: list[StageAttemptRecord],
-    *,
-    candidate_attempt_id: str,
-    durable_candidate: JsonValue | None = None,
-    repairs: Sequence[ParsimonyRepairRecord] = (),
-) -> dict[GeneratedStage, JsonValue]:
-    """Reduce stage evidence to one causally contiguous artifact frontier."""
-    frontier: dict[GeneratedStage, JsonValue] = {}
-    order = tuple(GeneratedStage)
-    for record in sorted(records, key=lambda item: item.sequence):
-        if (
-            durable_candidate is not None
-            and record.input.candidate != durable_candidate
-        ):
-            raise ValueError("stage candidate snapshot differs from durable plan")
-        for invalidated in order[order.index(record.stage) :]:
-            frontier.pop(invalidated, None)
-        visible = dict(record.input.visible_artifacts)
-        if record.stage is GeneratedStage.behavior:
-            visible_tree = visible.get(GeneratedStage.tree.value)
-            if (
-                visible_tree is None
-                or record.final_tree_snapshot_sha256 != canonical_sha256(visible_tree)
-            ):
-                raise ValueError(
-                    "behavior evidence is not bound to its final-tree input"
-                )
-            generated_tree = frontier.get(GeneratedStage.tree)
-            if generated_tree is None:
-                raise ValueError("behavior evidence has no causal generated tree")
-            before_digest = canonical_sha256(generated_tree)
-            after_digest = canonical_sha256(visible_tree)
-            if before_digest != after_digest and not any(
-                repair.accepted
-                and repair.candidate_attempt_id == candidate_attempt_id
-                and repair.sequence < record.sequence
-                and repair.before_digest == before_digest
-                and repair.after_digest == after_digest
-                for repair in repairs
-            ):
-                raise ValueError(
-                    "behavior tree is neither generated nor linked by accepted repair"
-                )
-            frontier[GeneratedStage.tree] = visible_tree
-        expected_visible = {
-            stage.value: artifact for stage, artifact in frontier.items()
-        }
-        if visible != expected_visible:
-            raise ValueError("stage evidence is not one contiguous causal frontier")
-        if (
-            record.result is not None
-            and not record.violations
-            and record.call is not None
-        ):
-            frontier[record.stage] = record.result
-    return frontier
 
 
 class PersistenceJournalV1(StrictModel):
@@ -1732,380 +1285,6 @@ def _read_model(
         )
     except Exception as exc:
         raise ManifestIntegrityError(f"Invalid {role.value}: {exc}") from exc
-
-
-def validate_v3_inventories(resolver: Any) -> None:
-    """Reconcile manifest v3, coverage, finalization, and quarantine receipts."""
-
-    if (resolver.run_dir / ".finalization-state.json").exists():
-        raise ManifestIntegrityError(
-            "Manifest v3 cannot finalize with an unresolved journal"
-        )
-    coverage_entry = resolver.entry_by_role(ArtifactRole.COVERAGE_PLAN)
-    final_entry = resolver.entry_by_role(ArtifactRole.FINALIZATION_INVENTORY)
-    planning_entry = resolver.entry_by_role(ArtifactRole.PLANNING_CHECKPOINT)
-    if planning_entry is None or coverage_entry is None or final_entry is None:
-        raise ManifestIntegrityError("Manifest v3 persistence singletons are missing")
-    try:
-        coverage = CoveragePlanV2.model_validate(resolver.read_json(coverage_entry))
-        final = FinalizationInventoryV1.model_validate(resolver.read_json(final_entry))
-    except Exception as exc:
-        raise ManifestIntegrityError(
-            f"Invalid manifest v3 persistence model: {exc}"
-        ) from exc
-    checkpoint = read_planning_checkpoint_bytes(resolver.read_bytes(planning_entry))
-    validate_planning_checkpoint(checkpoint, coverage)
-    if final.run_id != resolver.manifest.run_id:
-        raise ManifestIntegrityError("Finalization inventory run_id mismatch")
-    if final.coverage_plan_sha256 != coverage_entry.sha256:
-        raise ManifestIntegrityError("Finalization coverage plan hash mismatch")
-    admitted_decisions = [
-        decision for decision in final.admission_decisions if decision.admitted
-    ]
-    if admitted_decisions:
-        profile_entry = resolver.entry_by_role(ArtifactRole.CAPABILITY_PROFILE)
-        if profile_entry is None:
-            raise ManifestIntegrityError(
-                "Admitted inventory requires capability profile"
-            )
-        try:
-            profile = CapabilityProfile.model_validate(
-                resolver.read_yaml(profile_entry)
-            )
-        except Exception as exc:
-            raise ManifestIntegrityError(f"Invalid capability profile: {exc}") from exc
-        expected_applicability = {
-            AdmissionEvidenceId.tool_integration_grounding: (
-                profile.tool_inventory_completeness
-                is InventoryCompleteness.operator_confirmed_complete
-            ),
-            AdmissionEvidenceId.data_access_grounding: (
-                profile.entry_point_completeness
-                is InventoryCompleteness.operator_confirmed_complete
-            ),
-        }
-    for decision in admitted_decisions:
-        gates = {gate.gate: gate for gate in decision.gate_results}
-        if any(
-            gates[evidence_id].applicable is not expected
-            for evidence_id, expected in expected_applicability.items()
-        ):
-            raise ManifestIntegrityError(
-                "Admitted conditional evidence applicability does not match "
-                "the capability profile"
-            )
-
-    plan_by_candidate = {
-        choice.candidate_id: (target, choice)
-        for target in coverage.targets
-        for choice in target.ordered_choices
-    }
-    plan_target_ids = {target.effective_target_id for target in coverage.targets}
-    for transition in final.transitions:
-        if transition.target_entry_point_id not in plan_target_ids:
-            raise ManifestIntegrityError(
-                "Lifecycle transition target is absent from plan"
-            )
-        if transition.candidate_id is not None:
-            planned = plan_by_candidate.get(transition.candidate_id)
-            if (
-                planned is None
-                or planned[0].effective_target_id != transition.target_entry_point_id
-            ):
-                raise ManifestIntegrityError(
-                    "Lifecycle transition candidate/target is absent from plan"
-                )
-    admitted = {receipt.candidate_id for receipt in final.admitted_inventory}
-    quarantined = {receipt.candidate_id for receipt in final.quarantine_inventory}
-    if admitted & quarantined:
-        raise ManifestIntegrityError("Admitted and quarantine inventories overlap")
-    for attempt in final.candidate_attempts:
-        planned = plan_by_candidate.get(attempt.candidate_id)
-        if planned is None:
-            raise ManifestIntegrityError(
-                "Finalization attempt is absent from coverage plan"
-            )
-        target, choice = planned
-        if (
-            attempt.target_entry_point_id != target.effective_target_id
-            or attempt.queue_rank != choice.rank
-        ):
-            raise ManifestIntegrityError(
-                "Finalization attempt does not match coverage plan"
-            )
-
-    attempts_by_target: dict[str, list[CandidateAttemptRecord]] = {}
-    for attempt in final.candidate_attempts:
-        attempts_by_target.setdefault(attempt.target_entry_point_id, []).append(attempt)
-    attempts_by_target_id = {
-        target_id: [item.candidate_id for item in attempts]
-        for target_id, attempts in attempts_by_target.items()
-    }
-    for target in coverage.targets:
-        if target.attempted_candidate_ids != attempts_by_target_id.get(
-            target.effective_target_id, []
-        ):
-            raise ManifestIntegrityError(
-                "Coverage plan attempted candidates do not match finalization inventory"
-            )
-    admitted_decisions = {
-        decision.candidate_id
-        for decision in final.admission_decisions
-        if decision.admitted
-    }
-    attempted_candidates = {item.candidate_id for item in final.candidate_attempts}
-    terminal_candidates = {item.candidate_id for item in final.admission_decisions}
-    if attempted_candidates != terminal_candidates:
-        raise ManifestIntegrityError(
-            "Every attempted candidate requires exactly one terminal decision"
-        )
-    nonadmitted_decisions = terminal_candidates - admitted_decisions
-    if admitted != admitted_decisions:
-        raise ManifestIntegrityError(
-            "Admitted receipts must exactly match admitted terminal decisions"
-        )
-    if quarantined != nonadmitted_decisions:
-        raise ManifestIntegrityError(
-            "Quarantine receipts must exactly match non-admitted terminal decisions"
-        )
-    for attempts in attempts_by_target.values():
-        ranks = [item.queue_rank for item in attempts]
-        if any(right <= left for left, right in zip(ranks, ranks[1:])):
-            raise ManifestIntegrityError(
-                "Fallback attempts must have increasing queue rank"
-            )
-        if attempts and not attempts[0].is_primary:
-            raise ManifestIntegrityError(
-                "Primary candidate must be attempted before fallback"
-            )
-        if any(item.is_primary for item in attempts[1:]):
-            raise ManifestIntegrityError("Only the first target attempt may be primary")
-        for index, attempt in enumerate(attempts[:-1]):
-            if attempt.candidate_id in admitted_decisions:
-                raise ManifestIntegrityError(
-                    "Fallback attempted after target admission"
-                )
-    for target in coverage.targets:
-        target_admitted = [
-            candidate_id
-            for candidate_id in target.attempted_candidate_ids
-            if candidate_id in admitted_decisions
-        ]
-        if target.target_state is TargetState.admitted:
-            if target_admitted != [target.admitted_candidate_id]:
-                raise ManifestIntegrityError(
-                    "Coverage target admission does not match terminal decision"
-                )
-        elif target.target_state is not TargetState.exhausted:
-            raise ManifestIntegrityError(
-                "Completed manifest v3 targets must be admitted or exhausted"
-            )
-        target_transitions = [
-            item
-            for item in final.transitions
-            if item.target_entry_point_id == target.effective_target_id
-        ]
-        expected_terminal = (
-            LifecycleState.admitted
-            if target.target_state is TargetState.admitted
-            else LifecycleState.exhausted
-        )
-        if (
-            not target_transitions
-            or target_transitions[-1].current is not expected_terminal
-        ):
-            raise ManifestIntegrityError(
-                "Coverage target state does not match its terminal transition"
-            )
-
-    manifest_entries = {
-        (entry.role, entry.path, entry.candidate_id, entry.scenario_id, entry.sha256)
-        for entry in resolver.manifest.inventory
-        if entry.role
-        in {
-            ArtifactRole.SCENARIO_YAML,
-            ArtifactRole.SCENARIO_FEATURE,
-            ArtifactRole.QUARANTINE_BUNDLE,
-        }
-    }
-    receipt_entries = {
-        (item.role, item.path, item.candidate_id, item.scenario_id, item.sha256)
-        for item in [*final.admitted_inventory, *final.quarantine_inventory]
-    }
-    if manifest_entries != receipt_entries:
-        raise ManifestIntegrityError(
-            "Finalization receipts and manifest entries must match exactly"
-        )
-
-    for candidate_id in admitted:
-        receipts = [
-            item
-            for item in final.admitted_inventory
-            if item.candidate_id == candidate_id
-        ]
-        if sorted(
-            (item.role for item in receipts), key=lambda role: role.value
-        ) != sorted(
-            [ArtifactRole.SCENARIO_YAML, ArtifactRole.SCENARIO_FEATURE],
-            key=lambda role: role.value,
-        ):
-            raise ManifestIntegrityError(
-                "Every admitted candidate requires one YAML/feature pair"
-            )
-        if len({item.scenario_id for item in receipts}) != 1:
-            raise ManifestIntegrityError(
-                "Admitted YAML/feature receipts require the same scenario_id"
-            )
-    for candidate_id in quarantined:
-        receipts = [
-            item
-            for item in final.quarantine_inventory
-            if item.candidate_id == candidate_id
-        ]
-        if len(receipts) != 1 or receipts[0].role is not ArtifactRole.QUARANTINE_BUNDLE:
-            raise ManifestIntegrityError(
-                "Every quarantined candidate requires one bundle only"
-            )
-
-    eval_candidates = {
-        entry.candidate_id
-        for entry in resolver.manifest.inventory
-        if entry.role is ArtifactRole.EVAL_SCORECARD and entry.candidate_id
-    }
-    if eval_candidates & quarantined:
-        raise ManifestIntegrityError(
-            "Evaluation inventory contains quarantined candidate"
-        )
-    bundle_candidates = {
-        entry.candidate_id
-        for entry in resolver.manifest.inventory
-        if entry.role is ArtifactRole.QUARANTINE_BUNDLE
-    }
-    normal_candidates = {
-        entry.candidate_id
-        for entry in resolver.manifest.inventory
-        if entry.role in {ArtifactRole.SCENARIO_YAML, ArtifactRole.SCENARIO_FEATURE}
-    }
-    if bundle_candidates & normal_candidates:
-        raise ManifestIntegrityError(
-            "Quarantine candidate carries a normal scenario role"
-        )
-    if normal_candidates != admitted:
-        raise ManifestIntegrityError(
-            "Normal scenario inventory must contain admitted candidates only"
-        )
-    for candidate_id in admitted:
-        attempt = next(
-            item
-            for item in final.candidate_attempts
-            if item.candidate_id == candidate_id
-        )
-        _causal_stage_artifacts(
-            [
-                item
-                for item in final.stage_attempts
-                if item.candidate_id == candidate_id
-            ],
-            candidate_attempt_id=attempt.attempt_id,
-            durable_candidate=plan_by_candidate[candidate_id][1].projected_candidate,
-            repairs=[
-                item for item in final.repairs if item.candidate_id == candidate_id
-            ],
-        )
-    for entry in resolver.entries_by_role(ArtifactRole.QUARANTINE_BUNDLE):
-        try:
-            bundle = QuarantineBundleV1.model_validate(resolver.read_json(entry))
-        except Exception as exc:
-            raise ManifestIntegrityError(
-                f"Invalid quarantine bundle {entry.path}: {exc}"
-            ) from exc
-        if (
-            bundle.run_id != resolver.manifest.run_id
-            or bundle.candidate_id != entry.candidate_id
-            or entry.path != f"quarantine/{bundle.attempt_id}.json"
-        ):
-            raise ManifestIntegrityError(
-                f"Quarantine bundle identity/path mismatch: {entry.path}"
-            )
-        attempt = next(
-            (
-                item
-                for item in final.candidate_attempts
-                if item.candidate_id == bundle.candidate_id
-            ),
-            None,
-        )
-        if (
-            attempt is None
-            or attempt.attempt_id != bundle.attempt_id
-            or attempt.target_entry_point_id != bundle.target_entry_point_id
-        ):
-            raise ManifestIntegrityError(
-                f"Quarantine bundle does not match candidate attempt: {entry.path}"
-            )
-        decision = next(
-            item
-            for item in final.admission_decisions
-            if item.candidate_id == bundle.candidate_id
-        )
-        if bundle.violations != decision.violations:
-            raise ManifestIntegrityError(
-                f"Quarantine bundle violations mismatch terminal decision: {entry.path}"
-            )
-        causal_artifacts = _causal_stage_artifacts(
-            [
-                item
-                for item in final.stage_attempts
-                if item.candidate_id == bundle.candidate_id
-            ],
-            candidate_attempt_id=attempt.attempt_id,
-            durable_candidate=plan_by_candidate[bundle.candidate_id][
-                1
-            ].projected_candidate,
-            repairs=[
-                item
-                for item in final.repairs
-                if item.candidate_id == bundle.candidate_id
-            ],
-        )
-        for stage in GeneratedStage:
-            if getattr(bundle, stage.value) != causal_artifacts.get(stage):
-                raise ManifestIntegrityError(
-                    f"Quarantine bundle {stage.value} evidence mismatch: {entry.path}"
-                )
-    if quarantined and resolver.manifest.status is not RunStatus.COMPLETED_WITH_ERRORS:
-        raise ManifestIntegrityError(
-            "Manifest v3 quarantine inventory requires completed_with_errors"
-        )
-    if not quarantined and resolver.manifest.status not in {
-        RunStatus.COMPLETED,
-        RunStatus.COMPLETED_WITH_ERRORS,
-    }:
-        raise ManifestIntegrityError(
-            "Manifest v3 inventory requires a completed status"
-        )
-
-
-def _violations(values: Any) -> list[ViolationRecord]:
-    records: list[ViolationRecord] = []
-    for value in values:
-        owner = getattr(value, "owner", None)
-        code = getattr(value, "code", "invalid")
-        if isinstance(code, Enum):
-            serialized_code = code.value
-        elif isinstance(code, str):
-            serialized_code = code
-        else:
-            raise TypeError("violation code must be a string or enum")
-        records.append(
-            ViolationRecord(
-                code=serialized_code,
-                detail=value.detail,
-                owner=owner,
-                retryable=getattr(value, "retryable", owner is not None),
-            )
-        )
-    return records
 
 
 def make_admitted_terminal_payload(
@@ -3081,3 +2260,137 @@ def make_finalization_persistence_adapter(
         )
         write_finalization_inventory(run_dir, inventory)
     return FinalizationPersistenceAdapter(run_dir, inventory, coverage_plan)
+
+
+# The inventory-validation predicates live in the private sibling module
+# pipeline.persistence_validation; re-export them here so all existing
+# import paths (including private helpers used by tests) keep working.
+from asago_scenario_generator.pipeline.persistence_validation import (  # noqa: E402
+    _check_durable_event_ids as _check_durable_event_ids,
+    _check_durable_event_sequences as _check_durable_event_sequences,
+    _attempt_ids as _attempt_ids,
+    _candidate_ids as _candidate_ids,
+    _check_unique_attempt_and_candidate_ids as _check_unique_attempt_and_candidate_ids,
+    _index_target_trace_events as _index_target_trace_events,
+    _target_trace_terminal_edges as _target_trace_terminal_edges,
+    _transition_indexes_contiguous as _transition_indexes_contiguous,
+    _check_target_transition_indexes as _check_target_transition_indexes,
+    _CandidateTraceState as _CandidateTraceState,
+    _check_target_candidate_trace as _check_target_candidate_trace,
+    _revalidating_segment_invalid as _revalidating_segment_invalid,
+    _check_revalidating_segment as _check_revalidating_segment,
+    _check_exhausted_segment as _check_exhausted_segment,
+    _check_active_segment as _check_active_segment,
+    _legal_lifecycle_edges as _legal_lifecycle_edges,
+    _generating_state_by_stage as _generating_state_by_stage,
+    _check_lifecycle_edges as _check_lifecycle_edges,
+    _stage_reference_invalid as _stage_reference_invalid,
+    _stage_attempts_by_id as _stage_attempts_by_id,
+    _attempts_by_id as _attempts_by_id,
+    _check_stage_references as _check_stage_references,
+    _repair_mismatches_attempt as _repair_mismatches_attempt,
+    _subsequent_behavior_inputs as _subsequent_behavior_inputs,
+    _check_repair_records as _check_repair_records,
+    _stage_invocation_indexes_contiguous as _stage_invocation_indexes_contiguous,
+    _stage_retry_indexes_not_monotonic as _stage_retry_indexes_not_monotonic,
+    _check_stage_invocation_indexes as _check_stage_invocation_indexes,
+    _generating_transitions_for as _generating_transitions_for,
+    _stage_attempts_for as _stage_attempts_for,
+    _generating_transition_count_mismatch as _generating_transition_count_mismatch,
+    _decision_for_candidate as _decision_for_candidate,
+    _later_candidate_events as _later_candidate_events,
+    _unknown_terminal_adjacency as _unknown_terminal_adjacency,
+    _unknown_terminal_edge_order as _unknown_terminal_edge_order,
+    _unknown_outcome_decision as _unknown_outcome_decision,
+    _single_unknown_invocation_violation as _single_unknown_invocation_violation,
+    _single_quarantine_bundle_receipt as _single_quarantine_bundle_receipt,
+    _no_later_stage_or_repair_events as _no_later_stage_or_repair_events,
+    _unknown_terminal_trace_matches as _unknown_terminal_trace_matches,
+    _unknown_terminal_decision_matches as _unknown_terminal_decision_matches,
+    _is_exact_unknown_terminal as _is_exact_unknown_terminal,
+    _check_unmatched_generating_transition as _check_unmatched_generating_transition,
+    _generating_stage_pairing_mismatch as _generating_stage_pairing_mismatch,
+    _check_generating_stage_pairing as _check_generating_stage_pairing,
+    _check_generating_transition_traces as _check_generating_transition_traces,
+    _candidate_stages_for as _candidate_stages_for,
+    _check_stage_evidence_precedes_terminal as _check_stage_evidence_precedes_terminal,
+    _check_terminal_precedes_decision as _check_terminal_precedes_decision,
+    _next_target_transition_after as _next_target_transition_after,
+    _check_decision_precedes_next_target_transition as _check_decision_precedes_next_target_transition,
+    _check_postbehavior_admission_edge as _check_postbehavior_admission_edge,
+    _check_admitting_edge_requires_gate_evidence as _check_admitting_edge_requires_gate_evidence,
+    _check_gate_violations_match_terminal as _check_gate_violations_match_terminal,
+    _admitted_missing_passing_gate_evidence as _admitted_missing_passing_gate_evidence,
+    _check_admitted_requires_passing_gates as _check_admitted_requires_passing_gates,
+    _causal_artifacts_for_decision as _causal_artifacts_for_decision,
+    _expected_admission_snapshots as _expected_admission_snapshots,
+    _check_admission_snapshot_digests as _check_admission_snapshot_digests,
+    _check_admission_decision as _check_admission_decision,
+    _check_terminal_decisions as _check_terminal_decisions,
+    _receipt_keys as _receipt_keys,
+    _decision_receipt_keys as _decision_receipt_keys,
+    _receipt_inventories_mismatched as _receipt_inventories_mismatched,
+    _check_receipt_inventories as _check_receipt_inventories,
+    _causal_stage_artifacts as _causal_stage_artifacts,
+    validate_v3_inventories as validate_v3_inventories,
+    _check_v3_journal_unresolved as _check_v3_journal_unresolved,
+    _v3_persistence_entries as _v3_persistence_entries,
+    _v3_load_persistence_models as _v3_load_persistence_models,
+    _check_v3_run_identity as _check_v3_run_identity,
+    _v3_admitted_decisions as _v3_admitted_decisions,
+    _v3_profile_applicability as _v3_profile_applicability,
+    _v3_decision_gate_applicability_mismatch as _v3_decision_gate_applicability_mismatch,
+    _check_v3_gate_applicability as _check_v3_gate_applicability,
+    _v3_plan_by_candidate as _v3_plan_by_candidate,
+    _v3_transition_plan_mismatch as _v3_transition_plan_mismatch,
+    _check_v3_transition_in_plan as _check_v3_transition_in_plan,
+    _check_v3_transitions_in_plan as _check_v3_transitions_in_plan,
+    _v3_receipt_candidate_sets as _v3_receipt_candidate_sets,
+    _check_v3_inventory_disjoint as _check_v3_inventory_disjoint,
+    _v3_attempt_plan_mismatch as _v3_attempt_plan_mismatch,
+    _check_v3_attempts_match_plan as _check_v3_attempts_match_plan,
+    _v3_attempts_by_target as _v3_attempts_by_target,
+    _v3_candidate_ids as _v3_candidate_ids,
+    _v3_attempted_ids_by_target as _v3_attempted_ids_by_target,
+    _check_v3_attempted_candidates_per_target as _check_v3_attempted_candidates_per_target,
+    _v3_admitted_decision_ids as _v3_admitted_decision_ids,
+    _v3_attempted_and_terminal_ids as _v3_attempted_and_terminal_ids,
+    _check_v3_terminal_decision_sets as _check_v3_terminal_decision_sets,
+    _v3_fallback_ranks_not_increasing as _v3_fallback_ranks_not_increasing,
+    _check_v3_no_fallback_after_admission as _check_v3_no_fallback_after_admission,
+    _v3_primary_candidate_not_first as _v3_primary_candidate_not_first,
+    _check_v3_fallback_attempts as _check_v3_fallback_attempts,
+    _check_v3_fallback_order as _check_v3_fallback_order,
+    _v3_target_admitted_ids as _v3_target_admitted_ids,
+    _check_v3_target_terminal_state as _check_v3_target_terminal_state,
+    _v3_target_transitions as _v3_target_transitions,
+    _check_v3_target_terminal_transition as _check_v3_target_terminal_transition,
+    _check_v3_target_terminal_states as _check_v3_target_terminal_states,
+    _v3_manifest_scenario_entries as _v3_manifest_scenario_entries,
+    _v3_receipt_entries as _v3_receipt_entries,
+    _check_v3_manifest_receipts as _check_v3_manifest_receipts,
+    _v3_receipts_for as _v3_receipts_for,
+    _admitted_receipt_roles_mismatch as _admitted_receipt_roles_mismatch,
+    _check_v3_admitted_receipt_pairs as _check_v3_admitted_receipt_pairs,
+    _check_v3_quarantined_receipts as _check_v3_quarantined_receipts,
+    _v3_eval_scorecard_candidates as _v3_eval_scorecard_candidates,
+    _v3_bundle_candidates as _v3_bundle_candidates,
+    _v3_normal_scenario_candidates as _v3_normal_scenario_candidates,
+    _check_v3_eval_and_role_scopes as _check_v3_eval_and_role_scopes,
+    _v3_attempt_for as _v3_attempt_for,
+    _v3_stage_attempts_for as _v3_stage_attempts_for,
+    _v3_repairs_for as _v3_repairs_for,
+    _check_v3_admitted_causal_evidence as _check_v3_admitted_causal_evidence,
+    _v3_read_bundle as _v3_read_bundle,
+    _v3_bundle_identity_mismatch as _v3_bundle_identity_mismatch,
+    _v3_bundle_attempt_mismatch as _v3_bundle_attempt_mismatch,
+    _v3_attempt_or_none as _v3_attempt_or_none,
+    _v3_decision_for as _v3_decision_for,
+    _check_v3_bundle_identity as _check_v3_bundle_identity,
+    _check_v3_bundle_attempt as _check_v3_bundle_attempt,
+    _check_v3_bundle_violations as _check_v3_bundle_violations,
+    _check_v3_bundle_stage_evidence as _check_v3_bundle_stage_evidence,
+    _check_v3_quarantine_bundles as _check_v3_quarantine_bundles,
+    _check_v3_completed_status as _check_v3_completed_status,
+    _violations as _violations,
+)
