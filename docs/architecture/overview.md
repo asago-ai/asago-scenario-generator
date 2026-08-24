@@ -15,6 +15,12 @@ import path remains a façade. Taxonomy prompt-message construction lives in
 `llm.messages`. STPA keeps a structurally distinct local helper so the
 clean-copy boundary stays intact.
 
+The capability profile's computed boolean fields (`has_persistent_memory`,
+`multi_agent`, `hitl`) follow the contract in
+[capability-profile-contract.md](capability-profile-contract.md): they are
+derived from `kc_subcodes`, included in serialized output, and legacy input
+values warn only when they conflict with the derived result.
+
 Generation lifecycle contracts (retry directives, causal provider controls,
 stage call evidence, and typed attempt failures) live in
 `pipeline.generation_contracts`. Stage adapters, lifecycle policy, and
