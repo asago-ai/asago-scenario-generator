@@ -160,6 +160,7 @@ def build_gherkin_prompts(
     security_constraint: SecurityConstraint | None,
     loss_analysis: LossAnalysis,
     loader: TemplateLoader,
+    projection_alignment: str | None = None,
 ) -> tuple[str, str]:
     """Build the system and user prompts for the Gherkin call.
 
@@ -168,6 +169,9 @@ def build_gherkin_prompts(
         security_constraint: The security constraint for the should clause.
         loss_analysis: The loss analysis for valid Loss/Hazard ID extraction.
         loader: Template loader.
+        projection_alignment: Optional rendered STPA projection alignment
+            table shared by every Stage 6 prompt.  When ``None`` no table
+            is included (backward compatible default).
 
     Returns:
         A tuple of (system_prompt, user_prompt).
@@ -190,7 +194,10 @@ def build_gherkin_prompts(
     valid_loss_ids = _extract_valid_loss_ids(loss_analysis)
     valid_hazard_ids = _extract_valid_hazard_ids(loss_analysis)
 
-    system_prompt = loader.render_prompt("stage6c_gherkin_system.j2")
+    system_prompt = loader.render_prompt(
+        "stage6c_gherkin_system.j2",
+        projection_alignment=projection_alignment,
+    )
     user_prompt = loader.render_prompt(
         "stage6c_gherkin_user.j2",
         scenario_spec_yaml=scenario_spec_yaml,
@@ -200,11 +207,12 @@ def build_gherkin_prompts(
         ica_text=ica_text,
         valid_loss_ids=", ".join(valid_loss_ids),
         valid_hazard_ids=", ".join(valid_hazard_ids),
+        projection_alignment=projection_alignment,
     )
 
     return system_prompt, user_prompt
 
 
 # mutate4py-manifest-begin
-# {"version":1,"tested_at":"2026-08-10T14:15:36Z","module_hash":"259ec6e207d29d1a4368d010fdb72e8a7295ea27c8b8cd92fed10e800efad4e4","functions":[{"id":"func/generate_gherkin","name":"generate_gherkin","line":36,"end_line":87,"hash":"2696cb3a713cbffb2fdaa407f50ce235c9448f7a34345f8f5d02e58043d37246"},{"id":"func/parse_gherkin_spec","name":"parse_gherkin_spec","line":90,"end_line":105,"hash":"a421a08206d3ea26c0ce738422c2057124a80e6f99ed56c665f5373702e05926"},{"id":"func/_strip_code_fences","name":"_strip_code_fences","line":108,"end_line":113,"hash":"3965cc27ab2581cbf686d2ccada42a3298dedb886a4e2c3f43c62af0122c97ee"},{"id":"func/_parse_gherkin_yaml","name":"_parse_gherkin_yaml","line":116,"end_line":124,"hash":"fac2f2d6c061952fdb0cc0611f4dc7f67cc7fc8b120be72f26576e2890ec4f68"},{"id":"func/find_security_constraint","name":"find_security_constraint","line":127,"end_line":139,"hash":"84567bf4637b14b8cf301f46d81d9a7c5dba9cbf59bd92219ab128d599483bab"},{"id":"func/_extract_valid_loss_ids","name":"_extract_valid_loss_ids","line":142,"end_line":147,"hash":"b3877b29573191a25c86f7e31ce855690431951fc143624d7e6cf845b1adf4b1"},{"id":"func/_extract_valid_hazard_ids","name":"_extract_valid_hazard_ids","line":150,"end_line":152,"hash":"20caf5a95c1f64901c0a119dd47705fb0e21aa8b5bfbbd84b2d1d3ad0a557215"},{"id":"func/build_gherkin_prompts","name":"build_gherkin_prompts","line":155,"end_line":202,"hash":"be2f4dd26d0df15b2d9c17c53f0e19c0693f05ef3d3116688ec82175c4a8d75d"}]}
+# {"version":1,"tested_at":"2026-08-20T20:28:31Z","module_hash":"39dbab10feb8c8caf10eb8cfc2c93254f63d4069fea10e6e2d4627c7d9cb9e4f","functions":[{"id":"func/generate_gherkin","name":"generate_gherkin","line":39,"end_line":90,"hash":"2696cb3a713cbffb2fdaa407f50ce235c9448f7a34345f8f5d02e58043d37246"},{"id":"func/parse_gherkin_spec","name":"parse_gherkin_spec","line":93,"end_line":108,"hash":"a421a08206d3ea26c0ce738422c2057124a80e6f99ed56c665f5373702e05926"},{"id":"func/_strip_code_fences","name":"_strip_code_fences","line":111,"end_line":116,"hash":"3965cc27ab2581cbf686d2ccada42a3298dedb886a4e2c3f43c62af0122c97ee"},{"id":"func/_parse_gherkin_yaml","name":"_parse_gherkin_yaml","line":119,"end_line":127,"hash":"fac2f2d6c061952fdb0cc0611f4dc7f67cc7fc8b120be72f26576e2890ec4f68"},{"id":"func/find_security_constraint","name":"find_security_constraint","line":130,"end_line":142,"hash":"84567bf4637b14b8cf301f46d81d9a7c5dba9cbf59bd92219ab128d599483bab"},{"id":"func/_extract_valid_loss_ids","name":"_extract_valid_loss_ids","line":145,"end_line":150,"hash":"b3877b29573191a25c86f7e31ce855690431951fc143624d7e6cf845b1adf4b1"},{"id":"func/_extract_valid_hazard_ids","name":"_extract_valid_hazard_ids","line":153,"end_line":155,"hash":"20caf5a95c1f64901c0a119dd47705fb0e21aa8b5bfbbd84b2d1d3ad0a557215"},{"id":"func/build_gherkin_prompts","name":"build_gherkin_prompts","line":158,"end_line":213,"hash":"a677d168f27195e9f861619faacb6c4d77a9c455692e55138b5635ddb596a5d1"}]}
 # mutate4py-manifest-end

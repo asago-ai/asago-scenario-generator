@@ -95,6 +95,7 @@ def build_narrative_prompts(
     scenario_spec: ScenarioSpec,
     loader: TemplateLoader,
     capability_profile: CapabilityProfile | None = None,
+    projection_alignment: str | None = None,
 ) -> tuple[str, str]:
     """Build the system and user prompts for the narrative call.
 
@@ -103,6 +104,9 @@ def build_narrative_prompts(
         loader: Template loader.
         capability_profile: Optional capability profile used to ground
             technology-specific feedback mechanisms in the prompt.
+        projection_alignment: Optional rendered STPA projection alignment
+            table shared by every Stage 6 prompt.  When ``None`` no table
+            is included (backward compatible default).
 
     Returns:
         A tuple of (system_prompt, user_prompt).
@@ -118,13 +122,17 @@ def build_narrative_prompts(
     ica_text = f"ICA type: {scenario_spec.ica_type.value} on {scenario_spec.target_control_action}"
     technology_context = context_for(capability_profile)
 
-    system_prompt = loader.render_prompt("stage6a_narrative_system.j2")
+    system_prompt = loader.render_prompt(
+        "stage6a_narrative_system.j2",
+        projection_alignment=projection_alignment,
+    )
     user_prompt = loader.render_prompt(
         "stage6a_narrative_user.j2",
         scenario_spec_yaml=scenario_spec_yaml,
         ica_text=ica_text,
         loss_scenario=loss_scenario,
         technology_context=technology_context,
+        projection_alignment=projection_alignment,
     )
 
     return system_prompt, user_prompt
@@ -223,5 +231,5 @@ def derive_temporal_action_vector(
 
 
 # mutate4py-manifest-begin
-# {"version":1,"tested_at":"2026-08-20T10:32:24Z","module_hash":"88bd5befcb996150f2f9793268149fa13abdc9bf486ce7e83f04fb1ea8514927","functions":[{"id":"func/generate_narrative","name":"generate_narrative","line":44,"end_line":91,"hash":"45b1b3df64e80ba8fb67270e38c724c45d26465aab5ef860721774f9e98b9a65"},{"id":"func/build_narrative_prompts","name":"build_narrative_prompts","line":94,"end_line":130,"hash":"d0b3cea13fae2a4c9ab64cfdf9a4f79c13a5bba14c59fc6669b8eada7c990fef"},{"id":"func/derive_temporal_action_vector","name":"derive_temporal_action_vector","line":150,"end_line":222,"hash":"c9c3815f942598ff9bd6b67ca02a2cbcd446dd9934b5ee68957152a9653b9b63"}]}
+# {"version":1,"tested_at":"2026-08-20T20:28:40Z","module_hash":"408de2fe35590fdecbdf0703f010f1130f657cf11ffcc8c4bdda35b32b0bc2c7","functions":[{"id":"func/generate_narrative","name":"generate_narrative","line":44,"end_line":91,"hash":"45b1b3df64e80ba8fb67270e38c724c45d26465aab5ef860721774f9e98b9a65"},{"id":"func/build_narrative_prompts","name":"build_narrative_prompts","line":94,"end_line":138,"hash":"3ef51999b5007904f372d31b08d352898c0c08679855caffc2cc181abe99c49e"},{"id":"func/derive_temporal_action_vector","name":"derive_temporal_action_vector","line":158,"end_line":230,"hash":"c9c3815f942598ff9bd6b67ca02a2cbcd446dd9934b5ee68957152a9653b9b63"}]}
 # mutate4py-manifest-end
