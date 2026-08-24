@@ -10,11 +10,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from asago_scenario_generator.data.atlas import TECHNIQUE_PROPERTIES
-from asago_scenario_generator.llm.client import (
-    LengthFinishReasonError as LengthFinishReasonError,
-    LLMClient,
-    LLMResult,
-)
+from asago_scenario_generator.llm.client import LLMClient, LLMResult
 from asago_scenario_generator.models.capability_profile import (
     CapabilityProfile,
     is_attacker_accessible_ingress,
@@ -98,6 +94,10 @@ class Call0Response(BaseModel):
     material_insider_advantage: str | None = Field(
         default=None, max_length=_CALL0_EVIDENCE_MAX_LENGTH
     )
+
+
+class CompactCall0Response(Call0Response):
+    """Provider schema name for the one causal compact-response experiment."""
 
 
 # ---------------------------------------------------------------------------
@@ -1129,7 +1129,11 @@ def build_call0_context(
 
 
 def _complete_actor_profile(
-    client: LLMClient, system_prompt: str, user_prompt: str
+    client: LLMClient,
+    system_prompt: str,
+    user_prompt: str,
+    *,
+    compact_response_schema: bool = False,
 ) -> LLMResult:
     """Complete Call 0 exactly once with the operator-configured limit.
 
@@ -1140,7 +1144,9 @@ def _complete_actor_profile(
     return client.complete(
         system_prompt=system_prompt,
         user_prompt=user_prompt,
-        response_format=Call0Response,
+        response_format=(
+            CompactCall0Response if compact_response_schema else Call0Response
+        ),
         max_completion_tokens=client.max_completion_tokens,
     )
 
@@ -1160,6 +1166,7 @@ def _call_actor_profile(
     pinned_entry_point_id: str | None = None,
     access_feedback: str | None = None,
     completion_length_feedback: str | None = None,
+    compact_response_schema: bool = False,
     projection_context: dict[str, Any] | None = None,
 ) -> tuple[ActorProfile, LLMResult, str | None]:
     """Generate a threat actor profile for a scenario seed (Call 0).
@@ -1198,7 +1205,12 @@ def _call_actor_profile(
     user_prompt = render_prompt("call0_user.j2", **ctx)
     if completion_length_feedback:
         user_prompt = f"{user_prompt}{completion_length_feedback}"
-    result = _complete_actor_profile(client, system_prompt, user_prompt)
+    result = _complete_actor_profile(
+        client,
+        system_prompt,
+        user_prompt,
+        compact_response_schema=compact_response_schema,
+    )
 
     resp = result.content
     actor_type = _normalize_actor_type(resp.actor_type)

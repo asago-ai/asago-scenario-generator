@@ -8,7 +8,7 @@ validation, retry routing, admission, and persistence remain explicit ports.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import Any, Generic, Literal, TypeVar
+from typing import Any, Generic, TypeVar
 
 from asago_scenario_generator.llm.client import LLMClient, LLMResult
 from asago_scenario_generator.models.attack_tree import AttackTree
@@ -16,13 +16,19 @@ from asago_scenario_generator.models.capability_profile import CapabilityProfile
 from asago_scenario_generator.models.scenario import (
     ActorProfile,
     BehaviorSpec,
-    CallMetadata,
     CallName,
     NarrativeLayer,
     ScenarioEnvelope,
 )
 from asago_scenario_generator.pipeline.generate.constants import (
     _ADVERSARIAL_ONLY_THREATS,
+)
+from asago_scenario_generator.pipeline.generation_contracts import (
+    CausalRetryControl as CausalRetryControl,
+    RetryDirective,
+    StageAttemptFailure,
+    StageCallEvidence,
+    stage_attempt_failure,
 )
 from asago_scenario_generator.pipeline.projection import (
     CapabilityFactSnapshot,
@@ -69,79 +75,6 @@ class PreparedGeneration:
     projection_context: dict[str, Any]
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
-class RetryDirective:
-    """Caller-owned feedback for one explicit stage re-invocation.
-
-    ``reason`` distinguishes the completion-length channel from semantic
-    feedback.  A length retry appends ``feedback`` verbatim to the end of
-    the original user prompt; semantic retries route through the existing
-    per-stage feedback channels.
-    """
-
-    feedback: str | None = None
-    reason: str | None = None
-    forced_actor_type: str | None = None
-    prior_titles: tuple[str, ...] | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class StageCallEvidence:
-    """The exact LLM result and derived metadata for one stage invocation."""
-
-    call_name: CallName
-    result: LLMResult
-    metadata: CallMetadata
-
-
-class StageAttemptFailure(Exception):
-    """Truthful evidence for a failed single stage attempt.
-
-    ``phase`` discriminates failures before the client was called, failures
-    raised by the client invocation, and failures after an ``LLMResult`` was
-    obtained.  Missing result/raw response fields are intentionally ``None``.
-
-    Completion-length failures carry ``code == "completion_length"`` plus the
-    typed finish reason and usage extracted by the shared adapter; all other
-    failures keep the generic ``stage_attempt_failed`` code.  Callers route on
-    ``code``, never on exception text.
-    """
-
-    DEFAULT_CODE = "stage_attempt_failed"
-    COMPLETION_LENGTH_CODE = "completion_length"
-
-    def __init__(
-        self,
-        *,
-        call_name: CallName,
-        exception: BaseException,
-        phase: Literal["before_invocation", "invocation", "post_response"],
-        invoked: bool,
-        system_prompt: str | None = None,
-        user_prompt: str | None = None,
-        result: LLMResult | None = None,
-        raw_response: Any | None = None,
-        code: str = "stage_attempt_failed",
-        finish_reason: str | None = None,
-        prompt_tokens: int | None = None,
-        completion_tokens: int | None = None,
-    ) -> None:
-        super().__init__(str(exception))
-        self.call_name = call_name
-        self.exception_type = type(exception).__name__
-        self.detail = str(exception)
-        self.phase = phase
-        self.invoked = invoked
-        self.system_prompt = system_prompt
-        self.user_prompt = user_prompt
-        self.result = result
-        self.raw_response = raw_response
-        self.code = code
-        self.finish_reason = finish_reason
-        self.prompt_tokens = prompt_tokens
-        self.completion_tokens = completion_tokens
-
-
 def _split_retry(retry: RetryDirective | None) -> tuple[str | None, str | None]:
     """Split one retry directive into its two mutually exclusive channels.
 
@@ -162,52 +95,6 @@ def _optional_list(values: Any) -> list[Any] | None:
     return list(values) or None
 
 
-def stage_attempt_failure(
-    call_name: CallName,
-    exception: BaseException,
-    *,
-    phase: Literal["before_invocation", "invocation", "post_response"],
-    invoked: bool,
-    system_prompt: str | None = None,
-    user_prompt: str | None = None,
-    result: LLMResult | None = None,
-    raw_response: Any | None = None,
-) -> StageAttemptFailure:
-    """Build a typed StageAttemptFailure, normalizing length exhaustion.
-
-    Completion-length failures are recognized structurally from the shared
-    adapter's typed error — never from exception text — and carry the code
-    ``completion_length`` plus finish reason and usage fields.
-    """
-    from asago_scenario_generator.llm.client import CompletionLengthError
-
-    if isinstance(exception, CompletionLengthError):
-        return StageAttemptFailure(
-            call_name=call_name,
-            exception=exception,
-            phase=phase,
-            invoked=invoked,
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            result=result,
-            raw_response=raw_response,
-            code=StageAttemptFailure.COMPLETION_LENGTH_CODE,
-            finish_reason=exception.finish_reason,
-            prompt_tokens=exception.prompt_tokens,
-            completion_tokens=exception.completion_tokens,
-        )
-    return StageAttemptFailure(
-        call_name=call_name,
-        exception=exception,
-        phase=phase,
-        invoked=invoked,
-        system_prompt=system_prompt,
-        user_prompt=user_prompt,
-        result=result,
-        raw_response=raw_response,
-    )
-
-
 class _AttemptRecordingClient:
     """Transparent client proxy retaining truthful one-attempt evidence."""
 
@@ -217,6 +104,7 @@ class _AttemptRecordingClient:
         self.system_prompt: str | None = None
         self.user_prompt: str | None = None
         self.result: LLMResult | None = None
+        self.request_controls: dict[str, Any] = {}
         self._unstructured_response = False
 
     def __getattr__(self, name: str) -> Any:
@@ -233,12 +121,35 @@ class _AttemptRecordingClient:
         self.system_prompt = system_prompt
         self.user_prompt = user_prompt
         self._unstructured_response = response_format is None
-        self.result = self._client.complete(
+        max_tokens = kwargs.get("max_completion_tokens")
+        if max_tokens is None:
+            max_tokens = getattr(self._client, "max_completion_tokens", None)
+        request_temperature = kwargs.get("temperature")
+        if request_temperature is None:
+            request_temperature = getattr(self._client, "temperature", None)
+        self.request_controls = {
+            "response_schema": (
+                (
+                    "compact-v1"
+                    if response_format.__name__.startswith("Compact")
+                    else "standard"
+                )
+                if response_format is not None
+                else None
+            ),
+            "max_completion_tokens": max_tokens,
+            "transport_token_cap": getattr(self._client, "max_completion_tokens", None),
+            "temperature": request_temperature,
+        }
+        result = self._client.complete(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             response_format=response_format,
             **kwargs,
         )
+        if not result.request_controls:
+            result.request_controls = self.request_controls
+        self.result = result
         return self.result
 
     def failure(
@@ -265,6 +176,7 @@ class _AttemptRecordingClient:
                 and isinstance(self.result.content, str)
                 else None
             ),
+            request_controls=self.request_controls,
         )
 
 
@@ -351,6 +263,9 @@ def generate_actor_stage(
     request = prepared.request
     recorder = _AttemptRecordingClient(request.client)
     semantic_feedback, length_feedback = _split_retry(retry)
+    compact_schema = (
+        retry.provider_retry_value("response_schema") is not None if retry else False
+    )
     try:
         actor, result, limitation = generate._call_actor_profile(
             request.seed,
@@ -367,6 +282,7 @@ def generate_actor_stage(
             pinned_entry_point_id=request.pinned_entry_point_id,
             access_feedback=semantic_feedback,
             completion_length_feedback=length_feedback,
+            compact_response_schema=compact_schema,
             projection_context=prepared.projection_context,
         )
     except StageAttemptFailure:
@@ -396,6 +312,9 @@ def generate_narrative_stage(
     )
     recorder = _AttemptRecordingClient(request.client)
     semantic_feedback, length_feedback = _split_retry(retry)
+    retry_max_tokens = (
+        retry.provider_retry_value("max_completion_tokens") if retry else None
+    )
     try:
         narrative, result = generate._call_narrative(
             request.seed,
@@ -415,6 +334,7 @@ def generate_narrative_stage(
             pinned_entry_point_id=request.pinned_entry_point_id,
             realization_feedback=semantic_feedback,
             completion_length_feedback=length_feedback,
+            max_completion_tokens=retry_max_tokens,
             projection_context=prepared.projection_context,
         )
     except StageAttemptFailure:
@@ -438,6 +358,7 @@ def generate_tree_stage(
     request = prepared.request
     recorder = _AttemptRecordingClient(request.client)
     semantic_feedback, length_feedback = _split_retry(retry)
+    retry_temperature = retry.provider_retry_value("temperature") if retry else None
     try:
         tree, result = generate._call_attack_tree_once(
             request.seed,
@@ -450,6 +371,7 @@ def generate_tree_stage(
             pinned_technique_names=_optional_list(request.pinned_technique_names),
             consistency_feedback=semantic_feedback,
             completion_length_feedback=length_feedback,
+            temperature=retry_temperature,
             pinned_entry_point_id=request.pinned_entry_point_id,
             projection_context=prepared.projection_context,
         )
@@ -478,6 +400,9 @@ def generate_behavior_stage(
     request = prepared.request
     recorder = _AttemptRecordingClient(request.client)
     _, length_feedback = _split_retry(retry)
+    compact_schema = (
+        retry.provider_retry_value("response_schema") is not None if retry else False
+    )
     try:
         behavior, result = generate._call_behavior_spec(
             request.seed,
@@ -489,6 +414,7 @@ def generate_behavior_stage(
             prepared.scenario_id,
             pinned_technique_ids=_optional_list(request.pinned_technique_ids),
             completion_length_feedback=length_feedback,
+            compact_response_schema=compact_schema,
             projection_context=prepared.projection_context,
         )
     except StageAttemptFailure:
