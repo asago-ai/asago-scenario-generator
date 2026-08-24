@@ -70,21 +70,18 @@ from asago_scenario_generator.data.canonical import (
     _nfc,
     _normalize,
 )
+from asago_scenario_generator.data.paths import DATA_ROOT
 
 _DEFAULT_LINEAGE_PATH = (
-    Path(__file__).resolve().parents[3]
-    / "data"
+    DATA_ROOT
     / "taxonomies"
     / "attack-patterns"
     / "catalog-lineage.yaml"
 )
-_DEFAULT_SCHEMA_PATH = (
-    Path(__file__).resolve().parents[3] / "data" / "schemas" / "catalog-lineage.yaml"
-)
+_DEFAULT_SCHEMA_PATH = DATA_ROOT / "schemas" / "catalog-lineage.yaml"
 # Pinned ATLAS source; kept in sync with taxonomy_pins._DEFAULT_ATLAS_PATH.
 _DEFAULT_ATLAS_PATH = (
-    Path(__file__).resolve().parents[3]
-    / "data"
+    DATA_ROOT
     / "taxonomies"
     / "atlas"
     / "ATLAS-2026.05.yaml"

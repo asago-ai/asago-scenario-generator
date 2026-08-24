@@ -14,6 +14,7 @@ from asago_scenario_generator.data.loaders import (
     load_risk_extraction,
     load_yaml_strict,
 )
+from asago_scenario_generator.data.paths import DATA_ROOT
 from asago_scenario_generator.data.taxonomy_pins import load_taxonomy_resolver
 from asago_scenario_generator.models.attack_pattern import (
     AuthoritativeFactReference,
@@ -37,8 +38,7 @@ from asago_scenario_generator.pipeline.threats import determine_threat_surface
 
 
 _DEFAULT_CROSS_TAXONOMY_PATH = (
-    Path(__file__).resolve().parents[3]
-    / "data"
+    DATA_ROOT
     / "taxonomies"
     / "mappings"
     / "cross-taxonomy-mappings.yaml"
