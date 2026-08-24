@@ -259,8 +259,7 @@ def _legacy_flag_values(kc_subcodes: list[str]) -> dict[str, bool]:
     """
     kc_set = set(kc_subcodes)
     return {
-        "has_persistent_memory": bool(kc_set & _KC4_PERSISTENT)
-        or "KCX-PMEM" in kc_set,
+        "has_persistent_memory": bool(kc_set & _KC4_PERSISTENT) or "KCX-PMEM" in kc_set,
         "multi_agent": bool(kc_set & _KC_MULTI_AGENT),
         "hitl": bool(kc_set & _KC_HITL),
     }
