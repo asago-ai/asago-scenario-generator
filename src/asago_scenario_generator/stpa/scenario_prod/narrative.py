@@ -1,10 +1,14 @@
-"""Stage 6 Call A — Attack narrative.
+"""Stage 6 Call A — Attack narrative and temporal execution projection.
 
 One LLM call per scenario produces a 7-step attack narrative as a
-dialectic between attacker and defender BDIs.
+dialectic between attacker and defender BDIs.  The post-SP3 execution
+projection is deterministic: causal factors translate into executable
+temporal assertions and ordered scenario steps without any LLM call.
 """
 
 from __future__ import annotations
+
+from collections.abc import Sequence
 
 import yaml
 from pathlib import Path
@@ -13,12 +17,28 @@ from asago_scenario_generator.stpa.infra.llm import LLMClient
 from asago_scenario_generator.stpa.infra.llm_helpers import safe_llm_call_raw
 from asago_scenario_generator.stpa.infra.templates import TemplateLoader
 from asago_scenario_generator.models.capability_profile import CapabilityProfile
+from asago_scenario_generator.stpa.models.execution_envelope import (
+    CausalFactor,
+    CausalFactorKind,
+    ScenarioStep,
+    ScenarioStepKind,
+    TemporalActionVector,
+    TemporalAssertion,
+    candidate_id_for,
+    predicate_for,
+    step_kind_for,
+)
+from asago_scenario_generator.stpa.models.ica_enumeration import UCAType
 from asago_scenario_generator.stpa.models.scenario_spec import ScenarioSpec
 from asago_scenario_generator.stpa.threat_enum.technology_context import context_for
 
 from ._constants import PROMPTS_DIR
 
-__all__ = ["generate_narrative", "build_narrative_prompts"]
+__all__ = [
+    "generate_narrative",
+    "build_narrative_prompts",
+    "derive_temporal_action_vector",
+]
 
 
 def generate_narrative(
@@ -110,6 +130,98 @@ def build_narrative_prompts(
     return system_prompt, user_prompt
 
 
+_STEP_TEXTS: dict[CausalFactorKind, str] = {
+    CausalFactorKind.process_model_flaw: (
+        "Process model part {source} is flawed before control action {action} is issued"
+    ),
+    CausalFactorKind.feedback_delay: (
+        "Feedback channel {source} is delayed before control action {action} is issued"
+    ),
+    CausalFactorKind.sensor_anomaly: (
+        "Sensor reporting through {source} is anomalous before control "
+        "action {action} is issued"
+    ),
+    CausalFactorKind.actuator_anomaly: (
+        "Actuator {source} is anomalous before control action {action} is issued"
+    ),
+}
+
+
+def derive_temporal_action_vector(
+    causal_factors: Sequence[CausalFactor],
+    *,
+    controller_id: str,
+    control_action_id: str,
+    uca_type: UCAType,
+) -> TemporalActionVector:
+    """Derive the deterministic temporal action vector for causal factors.
+
+    Each causal factor maps to one executable temporal assertion and one
+    ordered scenario step; a non-empty vector ends with the unsafe
+    control action step for *control_action_id*.  The vector is linked
+    to the canonical candidate identifier for the given controller,
+    control action, and UCA type.
+
+    Empty *causal_factors* produce an empty vector — no assertions and
+    no steps are invented.
+
+    Args:
+        causal_factors: The mapped structural causal factors, in
+            causal-factor order.
+        controller_id: The owning responsibility identifier (RESP-N).
+        control_action_id: The targeted control action (CA-X-Y).
+        uca_type: The unsafe control action type.
+
+    Returns:
+        A :class:`TemporalActionVector` with canonical assertions and
+        steps.
+    """
+    factors = list(causal_factors)
+    assertions = [
+        TemporalAssertion(
+            assertion_id=f"TA-{index + 1}",
+            order_index=index,
+            kind=factor.kind,
+            source_id=factor.source_id,
+            predicate=predicate_for(factor.kind),
+        )
+        for index, factor in enumerate(factors)
+    ]
+    steps = [
+        ScenarioStep(
+            step_id=f"S-{index + 1}",
+            order_index=index,
+            kind=step_kind_for(factor.kind),
+            source_id=factor.source_id,
+            text=_STEP_TEXTS[factor.kind].format(
+                source=factor.source_id,
+                action=control_action_id,
+            ),
+        )
+        for index, factor in enumerate(factors)
+    ]
+    if factors:
+        steps.append(
+            ScenarioStep(
+                step_id=f"S-{len(factors) + 1}",
+                order_index=len(factors),
+                kind=ScenarioStepKind.unsafe_control_action,
+                source_id=control_action_id,
+                text=(
+                    f"Unsafe control action {control_action_id} executes "
+                    f"with {uca_type.value}"
+                ),
+            )
+        )
+    candidate_id = candidate_id_for(controller_id, control_action_id, uca_type)
+    return TemporalActionVector(
+        candidate_id=candidate_id,
+        control_action_id=control_action_id,
+        assertions=assertions,
+        steps=steps,
+    )
+
+
 # mutate4py-manifest-begin
-# {"version":1,"tested_at":"2026-08-14T09:07:18Z","module_hash":"c21de3b96d76b9f988e29ec0fc9da6cf06e74066f05aa1e092778025a4849002","functions":[{"id":"func/generate_narrative","name":"generate_narrative","line":24,"end_line":71,"hash":"45b1b3df64e80ba8fb67270e38c724c45d26465aab5ef860721774f9e98b9a65"},{"id":"func/build_narrative_prompts","name":"build_narrative_prompts","line":74,"end_line":110,"hash":"d0b3cea13fae2a4c9ab64cfdf9a4f79c13a5bba14c59fc6669b8eada7c990fef"}]}
+# {"version":1,"tested_at":"2026-08-20T10:32:24Z","module_hash":"88bd5befcb996150f2f9793268149fa13abdc9bf486ce7e83f04fb1ea8514927","functions":[{"id":"func/generate_narrative","name":"generate_narrative","line":44,"end_line":91,"hash":"45b1b3df64e80ba8fb67270e38c724c45d26465aab5ef860721774f9e98b9a65"},{"id":"func/build_narrative_prompts","name":"build_narrative_prompts","line":94,"end_line":130,"hash":"d0b3cea13fae2a4c9ab64cfdf9a4f79c13a5bba14c59fc6669b8eada7c990fef"},{"id":"func/derive_temporal_action_vector","name":"derive_temporal_action_vector","line":150,"end_line":222,"hash":"c9c3815f942598ff9bd6b67ca02a2cbcd446dd9934b5ee68957152a9653b9b63"}]}
 # mutate4py-manifest-end
