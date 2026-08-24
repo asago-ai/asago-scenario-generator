@@ -499,11 +499,17 @@ def prepare_generation(request: GenerationRequest) -> PreparedGeneration:
     ):
         excluded.append("negligent-insider")
     normalized = replace(request, excluded_actor_types=tuple(excluded))
+    from asago_scenario_generator.pipeline.generate.tree_semantics import (
+        validate_tree_projection_realizability,
+    )
+
+    projection_context = _build_projection_context(request.projected_candidate)
+    validate_tree_projection_realizability(projection_context, request.profile)
     return PreparedGeneration(
         request=normalized,
         candidate_id=candidate_id,
         scenario_id=compute_scenario_id(request.run_id, candidate_id, request.attempt),
-        projection_context=_build_projection_context(request.projected_candidate),
+        projection_context=projection_context,
     )
 
 

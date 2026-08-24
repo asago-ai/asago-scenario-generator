@@ -20,6 +20,9 @@ from asago_scenario_generator.models.scenario import (
     NarrativeLayer,
     NarrativeStep,
 )
+from asago_scenario_generator.pipeline.generate.canonical_projection import (
+    derive_canonical_projection_semantics,
+)
 from asago_scenario_generator.pipeline.generate.constants import _OWASP_LLM_NAMES
 from asago_scenario_generator.pipeline.generate.diversity import (
     _format_structural_exclusions,
@@ -116,6 +119,7 @@ class NarrativeProjectedStep:
     order: int
     zone: str
     realization: ProjectedStepRealization
+    region: str | None = None
 
     def __post_init__(self) -> None:
         if self.realization.projected_step_id != self.projected_step_id:
@@ -375,28 +379,19 @@ def _build_narrative_draft_context(
     presentation_fallback_allowed: bool = True,
 ) -> NarrativeDraftContext:
     """Allocate handles and canonical compilation data for one narrative."""
-    selected_by_id = _selected_projection_steps_by_id(projection_context)
     selected_ids = tuple(projection_context.get("selected_step_ids", ()))
     if not selected_ids:
         raise ValueError("projection has no selected steps for narrative generation")
-    if set(selected_ids) != set(selected_by_id):
-        raise ValueError(
-            "projection selected_step_ids must exactly match selected_steps"
-        )
+    semantics = derive_canonical_projection_semantics(projection_context, profile)
     handles = tuple(f"s{index}" for index in range(len(selected_ids)))
     projected_steps: dict[str, NarrativeProjectedStep] = {}
-    for index, (handle, step_id) in enumerate(zip(handles, selected_ids), start=1):
-        selected = selected_by_id[step_id]
-        raw_realization = selected.get("realization")
-        if not isinstance(raw_realization, dict):
-            raise ValueError(
-                f"missing canonical realization for projected step ID '{step_id}'"
-            )
+    for handle, semantic in zip(handles, semantics.steps, strict=True):
         projected_steps[handle] = NarrativeProjectedStep(
-            projected_step_id=step_id,
-            order=int(selected.get("order", index)),
-            zone=_canonical_narrative_zone(selected, projection_context, profile),
-            realization=ProjectedStepRealization.model_validate(raw_realization),
+            projected_step_id=semantic.projected_step_id,
+            order=semantic.order,
+            zone=semantic.zone,
+            realization=semantic.realization,
+            region=semantic.narrative_region,
         )
 
     ingress_id = projection_context.get("canonical_ingress", {}).get("entry_point_id")

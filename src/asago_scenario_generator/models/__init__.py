@@ -154,6 +154,16 @@ from asago_scenario_generator.models.scenario import (
     StructuralExposureSignal,
     TaxonomyChain,
     TechniqueMaturity,
+    TechniqueScopeEvidence,
+)
+from asago_scenario_generator.models.threat_scope import (
+    OutOfScopeEntry,
+    ThreatScope,
+    ThreatScopeEntry,
+)
+from asago_scenario_generator.models.threat_surface import (
+    ThreatSurface,
+    ThreatSurfaceEntry,
 )
 
 __all__ = [
@@ -247,6 +257,7 @@ __all__ = [
     "ObservablePostcondition",
     "ObservationRequirement",
     "OutputSurfaceResourceReference",
+    "OutOfScopeEntry",
     "PrerequisiteCapabilities",
     "Priority",
     "PrioritySignals",
@@ -285,6 +296,11 @@ __all__ = [
     "TaxonomyPin",
     "TaxonomyResolver",
     "TechniqueMaturity",
+    "TechniqueScopeEvidence",
+    "ThreatScope",
+    "ThreatScopeEntry",
+    "ThreatSurface",
+    "ThreatSurfaceEntry",
     "ToolInventoryEntry",
     "ToolResourceReference",
     "ToolType",

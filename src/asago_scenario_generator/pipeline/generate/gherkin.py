@@ -120,7 +120,8 @@ def _leaf_step_kind(leaf: AttackTreeNode) -> str:
         return _STEP_KIND_GIVEN
     if kind == "impact":
         return _STEP_KIND_THEN
-    # initial_ingress, ai_system_action, tool_invocation, integration_interaction
+    # initial_ingress, attacker_action, ai_system_action, tool_invocation,
+    # integration_interaction
     return _STEP_KIND_WHEN
 
 

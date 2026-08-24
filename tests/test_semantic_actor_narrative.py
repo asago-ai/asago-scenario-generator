@@ -396,14 +396,25 @@ def test_projected_narrative_call_uses_v2_schema_and_compiles_provider_draft(
     projection = {
         "canonical_ingress": {"entry_point_id": "ep:v1:canonical"},
         "ingress_controllability": "direct",
+        "initial_ingress_slot_id": "ingress",
         "selected_step_ids": ["projected.deliver"],
         "selected_steps": [
             {
                 "step_id": "projected.deliver",
                 "order": 1,
                 "action_kind": "deliver",
+                "executor_role": "attacker",
                 "boundary_position": "crossing",
-                "resource_links": [],
+                "resource_links": [
+                    {
+                        "role": "ingress",
+                        "slot_id": "ingress",
+                        "resource_ref": {
+                            "kind": "entry_point",
+                            "entry_point_id": "ep:v1:canonical",
+                        },
+                    }
+                ],
                 "realization": _realization("projected.deliver", "crossing").model_dump(
                     mode="json"
                 ),
@@ -437,6 +448,7 @@ def test_projected_narrative_call_uses_v2_schema_and_compiles_provider_draft(
         hitl=False,
         kc_subcodes=[],
     )
+    profile.resolve_entry_point.return_value = MagicMock(effective_ingress_zone="input")
 
     narrative, _ = _call_narrative(
         seed=MagicMock(),

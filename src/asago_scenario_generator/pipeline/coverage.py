@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from asago_scenario_generator.models import ThreatSurface
 from asago_scenario_generator.models.capability_profile import (
     CapabilityProfile,
     is_attacker_accessible_ingress,
@@ -30,7 +31,6 @@ from asago_scenario_generator.pipeline.coverage_planning import (
     StageLedger,
 )
 from asago_scenario_generator.pipeline.generate.zones import active_narrative_zones
-from asago_scenario_generator.pipeline.threats import ThreatSurface
 
 logger = logging.getLogger(__name__)
 

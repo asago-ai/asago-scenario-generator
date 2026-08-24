@@ -801,17 +801,17 @@ def _assemble_envelope(
     if not maestro_layers:
         maestro_layers = {3}
 
-    # Derive atlas_technique_ids from the actual attack tree content,
-    # not from seed metadata.  The seed's atlas_technique_ids reflects
-    # upstream provenance; the tree may legitimately drop techniques
-    # (e.g. the candidate filter pins fewer).  Using tree-derived IDs
-    # prevents orphan claims in the taxonomy chain.
-    if attack_tree is not None:
-        tree_technique_ids = attack_tree.collect_technique_ids()
-        reconciled_technique_ids = tree_technique_ids if tree_technique_ids else None
-    else:
-        # No tree — fall back to seed metadata (best available).
-        reconciled_technique_ids = seed.atlas_technique_ids or None
+    # The taxonomy chain records the qualified scenario classification. Exact
+    # projected-step mappings remain on canonical tree leaves and in explicit
+    # technique-scope evidence; the two sets may legitimately be disjoint.
+    from asago_scenario_generator.pipeline.technique_scopes import (
+        build_technique_scope_evidence,
+        scenario_classification_ids,
+    )
+
+    classification_ids = scenario_classification_ids(
+        pinned_technique_ids, seed.atlas_technique_ids
+    )
 
     faceting = FacetingMetadata(
         risk_card=seed.risk_card_ref,
@@ -819,7 +819,7 @@ def _assemble_envelope(
             owasp_llm_ids=seed.owasp_llm_ids,
             agentic_threat_ids=seed.agentic_threat_ids,
             owasp_asi_ids=seed.owasp_asi_ids,
-            atlas_technique_ids=reconciled_technique_ids,
+            atlas_technique_ids=classification_ids or None,
             scenario_seed=seed.seed_id,
         ),
         capability_profile=CapabilityProfileRef(
@@ -848,6 +848,7 @@ def _assemble_envelope(
         "attack_pattern_description": seed.attack_pattern_description,
         "owasp_origin": seed.owasp_origin,
         "laaf_technique_ids": seed.laaf_technique_ids,
+        "atlas_technique_ids": seed.atlas_technique_ids,
         "atlas_provenance_ids": seed.atlas_provenance_ids,
     }
 
@@ -870,6 +871,12 @@ def _assemble_envelope(
         attack_tree,
         behavior_spec,
         capability_snapshot,
+    )
+    technique_scope_evidence = build_technique_scope_evidence(
+        pinned_technique_ids=pinned_technique_ids,
+        seed_atlas_technique_ids=seed.atlas_technique_ids,
+        projection=projection_block,
+        narrative=narrative,
     )
 
     # Source-influence provenance (Wave 2 slice 5, QA-TSIP contract):
@@ -903,6 +910,7 @@ def _assemble_envelope(
         actor_profile=actor_profile,
         initial_entry_point_id=effective_entry_point_id,
         projection=projection_block,
+        technique_scope_evidence=technique_scope_evidence,
         narrative=narrative,
         attack_tree=attack_tree,
         behavior_spec=behavior_spec,
