@@ -70,6 +70,7 @@ def run_stpa_pipeline(
     capability_profile_path: Path | None = None,
     max_workers: int = 1,
     resume: bool = False,
+    temperature: float | None = None,
 ) -> STPARunResult:
     """Run the full STPA pipeline: SP1 → SP2 → SP3 → report.
 
@@ -87,6 +88,10 @@ def run_stpa_pipeline(
             passed to SP3 for envelope enrichment.
         max_workers: Parallel workers for LLM calls within stages.
         resume: When True, skip stages whose artifacts already exist.
+        temperature: Explicit LLM sampling temperature for all stages.
+            When None (default), each stage uses its resolved model
+            profile's temperature (or 0.4 without a profile), so the
+            profile's ``temperature`` field is no longer dead config.
 
     Returns:
         An :class:`STPARunResult` with per-stage results and the report path.
@@ -124,6 +129,7 @@ def run_stpa_pipeline(
         capability_profile_path=capability_profile_path,
         max_workers=max_workers,
         stage_errors=stage_errors,
+        temperature=temperature,
     )
 
     # Load SP1 artifacts from disk (needed for SP2/SP3 and for resume)
@@ -169,6 +175,7 @@ def run_stpa_pipeline(
         profiles_file=profiles_file,
         max_workers=max_workers,
         stage_errors=stage_errors,
+        temperature=temperature,
     )
 
     # Load SP2 artifacts from disk
@@ -198,6 +205,7 @@ def run_stpa_pipeline(
     )
     sp3_result = _run_sp3_stage(
         skip=skip_sp3,
+        temperature=temperature,
         output_dir=output_dir,
         enriched_threat_set=enriched_threat_set,
         control_structure=control_structure,
@@ -362,6 +370,7 @@ def _run_sp1_stage(
     capability_profile_path: Path | None,
     max_workers: int,
     stage_errors: list[str],
+    temperature: float | None = None,
 ) -> SP1RunResult | None:
     """Run SP1 and render calls.html, or return None when skipping."""
     if skip:
@@ -383,6 +392,7 @@ def _run_sp1_stage(
         profile_path=capability_profile_path,
         profile_name=profile_name,
         max_workers=max_workers,
+        temperature=temperature if temperature is not None else llm_client.temperature,
     )
 
     # Render calls.html
@@ -415,6 +425,7 @@ def _run_sp2_stage(
     profiles_file: str,
     max_workers: int,
     stage_errors: list[str],
+    temperature: float | None = None,
 ) -> SP2RunResult | None:
     """Run SP2 using SP1 artifacts, or return None when skipping/unavailable."""
     if skip:
@@ -431,6 +442,7 @@ def _run_sp2_stage(
         loss_analysis=loss_analysis,  # type: ignore[arg-type]
         run_dir=output_dir,
         max_workers=max_workers,
+        temperature=temperature if temperature is not None else llm_client.temperature,
     )
 
     if result.stage_errors:
@@ -458,6 +470,7 @@ def _run_sp3_stage(
     capability_profile_path: Path | None,
     max_workers: int,
     stage_errors: list[str],
+    temperature: float | None = None,
 ) -> SP3RunResult | None:
     """Run SP3 using SP1/SP2 artifacts, or return None when skipping/unavailable."""
     if skip:
@@ -487,6 +500,7 @@ def _run_sp3_stage(
         run_dir=output_dir,
         capability_profile=capability_profile,
         max_workers=max_workers,
+        temperature=temperature if temperature is not None else llm_client.temperature,
     )
 
     if result.stage_errors:
