@@ -778,7 +778,7 @@ class TestCallLogOrderingAndProfileSkip:
         gap = valid_gap_draft_dict()
         gap["use_case_losses"] = [
             {
-                "loss_id": f"L-{n_risk_losses + 1}",
+                "loss_id": f"L-{n_risk_losses + i + 1}",
                 "description": f"UC loss {i}",
                 "provenance": "use_case",
                 "source_risk_cards": [],

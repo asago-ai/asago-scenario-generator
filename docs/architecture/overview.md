@@ -158,12 +158,16 @@ capability and infrastructure contracts while retaining STPA-specific models
 and orchestration.
 
 Tolerant SP1 response graphs remain raw until deterministic ID/reference
-normalization produces a valid `ControlStructure`; invalid intermediate
-Pydantic objects are never serialized. Run results and manifests distinguish
-fatal `stage_errors` from recoverable `stage_warnings`. The warning field is
-additive, while repaired diagnostics no longer remain duplicated in the error
-field. STPA sampling resolves explicit arguments before profile/environment
-values and defaults, and manifests persist the effective non-secret settings.
+normalization produces valid typed artifacts; invalid intermediate Pydantic
+objects are never serialized. Stage 1a classifies losses from either
+intermediate container by typed provenance, deduplicates identical repeats,
+and reports conflicting IDs as fatal stage errors. Stage 2 rejects empty
+requirement/responsibility sets, and an exhausted fallback is fatal. The
+public SP1 result and run-manifest schemas are unchanged: fatal diagnostics
+use the existing `stage_errors` fields, while recoverable assembly repairs
+remain in `stage_warnings`. STPA sampling resolves explicit arguments before
+profile/environment values and defaults, and manifests persist the effective
+non-secret settings.
 
 Post-SP3 execution projection exposes a platform-neutral
 `CandidateExecutionEnvelope` for one unsafe control action. Its canonical

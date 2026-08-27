@@ -7,6 +7,7 @@ that would otherwise be copy-pasted in every stage module.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -266,6 +267,7 @@ def safe_llm_call(
     temperature: float = 0.4,
     max_completion_tokens: int | None = None,
     allow_unvalidated: bool = False,
+    result_validator: Callable[[_T], None] | None = None,
 ) -> tuple[_T | None, LLMResult | None, str | None]:
     """Wrap complete() + parse_llm_result() in a try/except.
 
@@ -287,6 +289,9 @@ def safe_llm_call(
             nested models without field validators if normal validation
             fails.  Callers must validate the resulting structure after
             deterministic normalization.
+        result_validator: Optional additional validation to run on the parsed
+            model before the call is logged as successful. This also applies
+            to models built through the tolerant unvalidated path.
 
     Returns:
         A tuple of (validated_model_or_None, llm_result_or_None, error_or_None).
@@ -313,6 +318,8 @@ def safe_llm_call(
             response_format,
             allow_unvalidated,
         )
+        if result_validator is not None:
+            result_validator(model)
         log_llm_call(result, llm_client.model, run_dir, stage, step)
         return model, result, None
     except Exception as exc:

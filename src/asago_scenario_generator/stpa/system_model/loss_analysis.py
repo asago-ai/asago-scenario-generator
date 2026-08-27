@@ -25,12 +25,15 @@ from asago_scenario_generator.stpa.infra.yaml_io import write_yaml
 from asago_scenario_generator.stpa.models.loss_analysis import (
     LossAnalysis,
     LossAnalysisDraft,
+    Loss,
+    LossProvenance,
 )
 from asago_scenario_generator.stpa.system_model._constants import PROMPTS_DIR
 
 STAGE = "stage_1a"
 STEP_RISK = "risk_derivation"
 STEP_GAP = "gap_analysis"
+STEP_MERGE = "merge"
 DEFAULT_TEMPERATURE = 0.4
 
 
@@ -126,7 +129,17 @@ def derive_loss_analysis(
     )
 
     # --- Merge and validate ---
-    merged = _merge_drafts(risk_draft, gap_draft)
+    try:
+        merged = _merge_drafts(risk_draft, gap_draft)
+    except Exception as exc:
+        # Merge validation happens after both LLM calls, so it is not covered
+        # by ``safe_llm_call``.  Keep the public stage boundary consistent
+        # with call failures and let run_sp1 record a structured diagnostic.
+        raise StageError(
+            stage=STAGE,
+            step=STEP_MERGE,
+            message=f"{type(exc).__name__}: {exc}",
+        ) from exc
     write_yaml(merged, run_dir / "loss-analysis.yaml")
     return merged
 
@@ -189,16 +202,23 @@ def _merge_drafts(
 ) -> LossAnalysis:
     """Merge risk derivation and gap analysis drafts into a final LossAnalysis.
 
-    Concatenates losses, hazards, and security constraints from both drafts.
-    Renumbers all IDs sequentially to guarantee no duplicates and valid
-    cross-references.
+    Normalizes losses from both drafts by their typed provenance, removes
+    identical duplicate records, and then concatenates hazards and security
+    constraints.  Finally, renumbers all IDs sequentially to guarantee no
+    duplicates and valid cross-references.
     """
-    all_risk_losses = list(risk_draft.risk_card_losses)
-    all_uc_losses = list(gap_draft.use_case_losses)
-    all_hazards = list(risk_draft.hazards) + list(gap_draft.hazards)
-    all_constraints = list(risk_draft.security_constraints) + list(
-        gap_draft.security_constraints
-    )
+    all_risk_losses, all_uc_losses = _normalize_losses(risk_draft, gap_draft)
+    all_hazards = [
+        hazard.model_copy(deep=True)
+        for hazard in [*risk_draft.hazards, *gap_draft.hazards]
+    ]
+    all_constraints = [
+        constraint.model_copy(deep=True)
+        for constraint in [
+            *risk_draft.security_constraints,
+            *gap_draft.security_constraints,
+        ]
+    ]
 
     # --- Renumber loss IDs (risk losses first, then use-case losses) ---
     loss_id_map = _renumber_items(all_risk_losses, "loss_id", "L-")
@@ -220,6 +240,52 @@ def _merge_drafts(
         hazards=all_hazards,
         security_constraints=all_constraints,
     )
+
+
+def _normalize_losses(
+    risk_draft: LossAnalysisDraft,
+    gap_draft: LossAnalysisDraft,
+) -> tuple[list[Loss], list[Loss]]:
+    """Classify and deduplicate losses from all draft containers.
+
+    LLM responses sometimes place a valid ``Loss`` in the opposite draft
+    container (for example, a risk-card loss in ``use_case_losses``).  The
+    typed ``provenance`` is the source of truth for the final artifact.  A
+    repeated record with the same ID and payload is tolerated, while a
+    repeated ID with a different payload is ambiguous and fails explicitly
+    before any IDs or references are mutated.
+    """
+    seen: dict[str, Loss] = {}
+    unique_losses: list[Loss] = []
+    sources = (
+        ("risk_derivation.risk_card_losses", risk_draft.risk_card_losses),
+        ("risk_derivation.use_case_losses", risk_draft.use_case_losses),
+        ("gap_analysis.risk_card_losses", gap_draft.risk_card_losses),
+        ("gap_analysis.use_case_losses", gap_draft.use_case_losses),
+    )
+
+    for source, losses in sources:
+        for loss in losses:
+            existing = seen.get(loss.loss_id)
+            if existing is not None:
+                if existing.model_dump(mode="json") != loss.model_dump(mode="json"):
+                    raise ValueError(
+                        f"conflicting duplicate loss ID '{loss.loss_id}' "
+                        f"between {source} and an earlier draft container"
+                    )
+                continue
+
+            normalized_loss = loss.model_copy(deep=True)
+            seen[normalized_loss.loss_id] = normalized_loss
+            unique_losses.append(normalized_loss)
+
+    risk_losses = [
+        loss for loss in unique_losses if loss.provenance == LossProvenance.risk_card
+    ]
+    use_case_losses = [
+        loss for loss in unique_losses if loss.provenance != LossProvenance.risk_card
+    ]
+    return risk_losses, use_case_losses
 
 
 def _renumber_items(
