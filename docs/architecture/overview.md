@@ -15,6 +15,12 @@ import path remains a façade. Taxonomy prompt-message construction lives in
 `llm.messages`. STPA keeps a structurally distinct local helper so the
 clean-copy boundary stays intact.
 
+The capability profile's computed boolean fields (`has_persistent_memory`,
+`multi_agent`, `hitl`) follow the contract in
+[capability-profile-contract.md](capability-profile-contract.md): they are
+derived from `kc_subcodes`, included in serialized output, and legacy input
+values warn only when they conflict with the derived result.
+
 Generation lifecycle contracts (retry directives, causal provider controls,
 stage call evidence, and typed attempt failures) live in
 `pipeline.generation_contracts`. Stage adapters, lifecycle policy, and
@@ -150,6 +156,14 @@ control structure, enumerates unsafe control actions and threats, and produces
 scenario, evaluation, and reporting artifacts. Its stages reuse shared
 capability and infrastructure contracts while retaining STPA-specific models
 and orchestration.
+
+Tolerant SP1 response graphs remain raw until deterministic ID/reference
+normalization produces a valid `ControlStructure`; invalid intermediate
+Pydantic objects are never serialized. Run results and manifests distinguish
+fatal `stage_errors` from recoverable `stage_warnings`. The warning field is
+additive, while repaired diagnostics no longer remain duplicated in the error
+field. STPA sampling resolves explicit arguments before profile/environment
+values and defaults, and manifests persist the effective non-secret settings.
 
 Post-SP3 execution projection exposes a platform-neutral
 `CandidateExecutionEnvelope` for one unsafe control action. Its canonical

@@ -185,7 +185,7 @@ def test_acceptance_refresh_registration_preserves_characterization():
         "CL-1 has source RESP-1 and target RESP-2",
         "the warnings list includes a warning naming step",
         "no assembly failure is logged",
-        "the SP1RunResult stage_errors contains the assemble_control_structure failure",
+        "the SP1RunResult stage_warnings contains the assemble_control_structure repair",
         "the control_structure module (?:does not )?exports?",
         "the SP2 prompts directory contains",
         "the SP3 prompts directory contains",
@@ -410,12 +410,12 @@ def test_acceptance_refresh_handler_branches_remain_characterized(tmp_path):
 
     error_world = SimpleNamespace(
         gd_run_result=SimpleNamespace(
-            stage_errors=["assemble_control_structure failed"]
+            stage_warnings=["assemble_control_structure repaired"]
         ),
         sp1_run_result=None,
     )
     assert _h_ar_sp1_assembly_error(error_world, "", {})[0]
-    error_world.gd_run_result = SimpleNamespace(stage_errors=[])
+    error_world.gd_run_result = SimpleNamespace(stage_warnings=[])
     assert not _h_ar_sp1_assembly_error(error_world, "", {})[0]
 
 

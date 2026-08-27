@@ -23,6 +23,7 @@ from asago_scenario_generator.stpa.infra.llm_helpers import (
     log_llm_call_failure,
     safe_llm_call,
 )
+from asago_scenario_generator.stpa.infra.unvalidated_decode import raw_model_data
 from asago_scenario_generator.stpa.infra.templates import TemplateLoader
 from asago_scenario_generator.stpa.infra.yaml_io import write_yaml
 from asago_scenario_generator.stpa.models.control_structure import (
@@ -53,11 +54,10 @@ def _assembly_source_id_maps(
     """Capture source-ID maps before the assembled structure is canonicalized."""
     raw_payload = {
         "responsibilities": [
-            resp.model_dump(mode="python", exclude_none=False)
-            for resp in responsibility_set.responsibilities
+            raw_model_data(resp) for resp in responsibility_set.responsibilities
         ],
         "controlled_processes": [
-            process.model_dump(mode="python", exclude_none=False)
+            raw_model_data(process)
             for process in control_element_set.controlled_processes
         ],
         "coordination_links": [],
@@ -240,13 +240,9 @@ def _control_structure_payload(
 ) -> dict[str, Any]:
     """Build a dictionary payload from assembled control-structure elements."""
     return {
-        "responsibilities": [
-            resp.model_dump(mode="python", exclude_none=False)
-            for resp in responsibilities
-        ],
+        "responsibilities": [raw_model_data(resp) for resp in responsibilities],
         "controlled_processes": [
-            process.model_dump(mode="python", exclude_none=False)
-            for process in controlled_processes
+            raw_model_data(process) for process in controlled_processes
         ],
         "coordination_links": [],
     }

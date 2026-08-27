@@ -20,7 +20,12 @@ from typing import Any
 
 import yaml
 
-from asago_scenario_generator.stpa.infra.llm import LLMClient
+from asago_scenario_generator.stpa.infra.llm import (
+    DEFAULT_TEMPERATURE as LLM_DEFAULT_TEMPERATURE,
+    LLMClient,
+    effective_model_config,
+    effective_temperature,
+)
 from asago_scenario_generator.stpa.infra.llm_helpers import safe_llm_call_raw
 from asago_scenario_generator.stpa.infra.manifest_helpers import (
     count_calls_by_stage,
@@ -74,7 +79,7 @@ from .validators import (
     validate_vulnerability_completeness,
 )
 
-DEFAULT_TEMPERATURE = 0.4
+DEFAULT_TEMPERATURE = LLM_DEFAULT_TEMPERATURE
 
 __all__ = ["SP3RunResult", "run_sp3"]
 
@@ -110,7 +115,7 @@ def run_sp3(
     run_dir: Path,
     capability_profile: CapabilityProfile | None = None,
     max_workers: int = 1,
-    temperature: float = DEFAULT_TEMPERATURE,
+    temperature: float | None = None,
 ) -> SP3RunResult:
     """Run the full SP3 pipeline: Stage 5 → Stage 6 → Stage 7.
 
@@ -125,7 +130,8 @@ def run_sp3(
             envelopes are enriched with ``system_context`` and
             ``consumer_hints`` blocks.
         max_workers: Maximum parallel workers for LLM calls.
-        temperature: LLM temperature.
+        temperature: Explicit LLM temperature override. When omitted, use the
+            resolved client temperature (default 0.4).
 
     Returns:
         An :class:`SP3RunResult` with artifacts and diagnostics.
@@ -134,6 +140,7 @@ def run_sp3(
     scenarios_dir = run_dir / "scenarios"
     scenarios_dir.mkdir(parents=True, exist_ok=True)
     loader = TemplateLoader(PROMPTS_DIR)
+    temperature = effective_temperature(llm_client, temperature)
 
     stage_errors: list[str] = []
     validation_errors: list[str] = []
@@ -222,6 +229,7 @@ def run_sp3(
         scenario_envelopes=scenario_envelopes,
         validation_errors=all_validation_errors,
         max_workers=max_workers,
+        temperature=temperature,
         stage_errors=stage_errors,
     )
 
@@ -691,6 +699,7 @@ def _write_manifest(
     scenario_envelopes: list[ScenarioEnvelope],
     validation_errors: list[str],
     max_workers: int,
+    temperature: float,
     stage_errors: list[str],
 ) -> None:
     """Write the run manifest YAML."""
@@ -706,11 +715,10 @@ def _write_manifest(
         "run_id": f"sp3-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}",
         "run_dir": str(run_dir),
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "model_config": {
-            "model": llm_client.model,
-            "base_url": llm_client.base_url,
-            "temperature": llm_client.temperature,
-        },
+        "model_config": effective_model_config(
+            llm_client,
+            temperature=temperature,
+        ),
         "input_hashes": input_hashes,
         "prompt_hashes": prompt_hashes,
         "stage_summary": stage_summary,
