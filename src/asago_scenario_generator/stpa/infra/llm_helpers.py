@@ -7,6 +7,7 @@ that would otherwise be copy-pasted in every stage module.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -266,11 +267,18 @@ def safe_llm_call(
     temperature: float = 0.4,
     max_completion_tokens: int | None = None,
     allow_unvalidated: bool = False,
+    result_validator: Callable[[_T], None] | None = None,
+    json_decode_retries: int = 0,
+    validation_retries: int = 0,
+    validation_retry_feedback: str | None = None,
 ) -> tuple[_T | None, LLMResult | None, str | None]:
     """Wrap complete() + parse_llm_result() in a try/except.
 
     On success, logs the call and returns ``(model, result, None)``.
     On failure, logs the failure and returns ``(None, result_or_none, error_msg)``.
+    When requested, bounded additional attempts are made only for explicitly
+    selected JSON-decoding or Pydantic-validation failures. Each attempt is
+    logged independently.
 
     Args:
         llm_client: LLM client for making the completion call.
@@ -287,50 +295,84 @@ def safe_llm_call(
             nested models without field validators if normal validation
             fails.  Callers must validate the resulting structure after
             deterministic normalization.
+        result_validator: Optional additional validation to run on the parsed
+            model before the call is logged as successful. This also applies
+            to models built through the tolerant unvalidated path.
+        json_decode_retries: Number of extra attempts to make after a
+            ``json.JSONDecodeError``. Defaults to zero.
+        validation_retries: Number of extra attempts to make after Pydantic
+            validation or the explicit ``result_validator`` fails. Defaults
+            to zero; stages must opt in.
+        validation_retry_feedback: Optional text appended to the original user
+            prompt on a validation retry.
 
     Returns:
         A tuple of (validated_model_or_None, llm_result_or_None, error_or_None).
     """
-    result: LLMResult | None = None
-    try:
-        completion_kwargs = _build_completion_kwargs(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            response_format=response_format,
-            temperature=temperature,
-            max_completion_tokens=max_completion_tokens,
-            allow_unvalidated=allow_unvalidated,
-        )
+    if json_decode_retries < 0 or validation_retries < 0:
+        raise ValueError("retry counts must be non-negative")
+
+    json_retries_remaining = json_decode_retries
+    validation_retries_remaining = validation_retries
+    attempt_user_prompt = user_prompt
+    while True:
+        result: LLMResult | None = None
+        result_validation_failed = False
         try:
-            result = llm_client.complete(**completion_kwargs)
-        except TypeError as exc:
-            if not _is_unsupported_unvalidated_error(exc, allow_unvalidated):
-                raise
-            completion_kwargs.pop("allow_unvalidated", None)
-            result = llm_client.complete(**completion_kwargs)
-        model = _parse_structured_result(
-            result,
-            response_format,
-            allow_unvalidated,
-        )
-        log_llm_call(result, llm_client.model, run_dir, stage, step)
-        return model, result, None
-    except Exception as exc:
-        error_msg = f"{type(exc).__name__}: {exc}"
-        _prompt_tokens, _completion_tokens, _duration_ms = _result_usage(result)
-        log_llm_call_failure(
-            llm_client.model,
-            run_dir,
-            stage,
-            step,
-            error_msg,
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            prompt_tokens=_prompt_tokens,
-            completion_tokens=_completion_tokens,
-            duration_ms=_duration_ms,
-        )
-        return None, result, error_msg
+            completion_kwargs = _build_completion_kwargs(
+                system_prompt=system_prompt,
+                user_prompt=attempt_user_prompt,
+                response_format=response_format,
+                temperature=temperature,
+                max_completion_tokens=max_completion_tokens,
+                allow_unvalidated=allow_unvalidated,
+            )
+            try:
+                result = llm_client.complete(**completion_kwargs)
+            except TypeError as exc:
+                if not _is_unsupported_unvalidated_error(exc, allow_unvalidated):
+                    raise
+                completion_kwargs.pop("allow_unvalidated", None)
+                result = llm_client.complete(**completion_kwargs)
+            model = _parse_structured_result(
+                result,
+                response_format,
+                allow_unvalidated,
+            )
+            if result_validator is not None:
+                try:
+                    result_validator(model)
+                except Exception:
+                    result_validation_failed = True
+                    raise
+            log_llm_call(result, llm_client.model, run_dir, stage, step)
+            return model, result, None
+        except Exception as exc:
+            error_msg = f"{type(exc).__name__}: {exc}"
+            _prompt_tokens, _completion_tokens, _duration_ms = _result_usage(result)
+            log_llm_call_failure(
+                llm_client.model,
+                run_dir,
+                stage,
+                step,
+                error_msg,
+                system_prompt=system_prompt,
+                user_prompt=attempt_user_prompt,
+                prompt_tokens=_prompt_tokens,
+                completion_tokens=_completion_tokens,
+                duration_ms=_duration_ms,
+            )
+            if isinstance(exc, json.JSONDecodeError) and json_retries_remaining:
+                json_retries_remaining -= 1
+                continue
+            if (
+                isinstance(exc, ValidationError) or result_validation_failed
+            ) and validation_retries_remaining:
+                validation_retries_remaining -= 1
+                if validation_retry_feedback:
+                    attempt_user_prompt = user_prompt + validation_retry_feedback
+                continue
+            return None, result, error_msg
 
 
 def safe_llm_call_raw(

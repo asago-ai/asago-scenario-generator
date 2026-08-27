@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -20,6 +21,7 @@ _SAMPLING_FIELDS = (
     "top_p",
     "top_k",
     "use_guided_decoding",
+    "timeout",
 )
 
 
@@ -36,6 +38,7 @@ def _write_gemma_profile(path: Path) -> Path:
                     "top_p": 0.95,
                     "top_k": 64,
                     "use_guided_decoding": True,
+                    "timeout": 45.0,
                 }
             }
         ),
@@ -61,6 +64,7 @@ def test_profile_and_environment_routes_resolve_equivalent_sampling(
     monkeypatch.setenv("ASAGO_SCENARIO_GENERATOR_TOP_P", "0.95")
     monkeypatch.setenv("ASAGO_SCENARIO_GENERATOR_TOP_K", "64")
     monkeypatch.setenv("ASAGO_SCENARIO_GENERATOR_USE_GUIDED_DECODING", "true")
+    monkeypatch.setenv("ASAGO_SCENARIO_GENERATOR_TIMEOUT", "45")
 
     env_client = resolve_llm_client_from_env()
 
@@ -78,6 +82,7 @@ def test_explicit_sampling_arguments_override_environment(monkeypatch) -> None:
     monkeypatch.setenv("ASAGO_SCENARIO_GENERATOR_TOP_P", "0.3")
     monkeypatch.setenv("ASAGO_SCENARIO_GENERATOR_TOP_K", "8")
     monkeypatch.setenv("ASAGO_SCENARIO_GENERATOR_USE_GUIDED_DECODING", "true")
+    monkeypatch.setenv("ASAGO_SCENARIO_GENERATOR_TIMEOUT", "9")
 
     client = LLMClient(
         max_completion_tokens=16384,
@@ -85,6 +90,7 @@ def test_explicit_sampling_arguments_override_environment(monkeypatch) -> None:
         top_p=0.95,
         top_k=64,
         use_guided_decoding=False,
+        timeout=45,
     )
 
     assert client.max_completion_tokens == 16384
@@ -92,6 +98,20 @@ def test_explicit_sampling_arguments_override_environment(monkeypatch) -> None:
     assert client.top_p == 0.95
     assert client.top_k == 64
     assert client.use_guided_decoding is False
+    assert client.timeout == 45.0
+
+
+def test_stpa_client_has_a_default_deadline_and_no_hidden_sdk_retries(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("ASAGO_SCENARIO_GENERATOR_MODEL_BASE_URL", "http://env.invalid")
+
+    with patch("asago_scenario_generator.stpa.infra.llm.OpenAI") as factory:
+        client = resolve_llm_client_from_env()
+
+    assert client.timeout == 300.0
+    assert factory.call_args.kwargs["timeout"] == 300.0
+    assert factory.call_args.kwargs["max_retries"] == 0
 
 
 @pytest.mark.parametrize(
@@ -102,6 +122,8 @@ def test_explicit_sampling_arguments_override_environment(monkeypatch) -> None:
         ("ASAGO_SCENARIO_GENERATOR_TOP_P", "almost-all"),
         ("ASAGO_SCENARIO_GENERATOR_TOP_K", "several"),
         ("ASAGO_SCENARIO_GENERATOR_USE_GUIDED_DECODING", "sometimes"),
+        ("ASAGO_SCENARIO_GENERATOR_TIMEOUT", "forever"),
+        ("ASAGO_SCENARIO_GENERATOR_TIMEOUT", "0"),
     ],
 )
 def test_invalid_environment_sampling_fails_preflight_with_field_name(
