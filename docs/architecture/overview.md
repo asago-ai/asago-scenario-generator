@@ -163,9 +163,10 @@ objects are never serialized. Stage 1a classifies losses from either
 intermediate container by typed provenance, deduplicates identical repeats,
 and reports conflicting IDs as fatal stage errors. Stage 2 rejects empty
 requirement/responsibility sets, and an exhausted fallback is fatal. The
-STPA retry contract is bounded: Stage 2 retries a JSON-decoding failure once,
-while Stage 1a retries semantic dangling hazard/loss references once with
-concise validation feedback. Each attempt is logged separately in
+STPA retry contract is bounded: Stage 2 retries a JSON-decoding failure or a
+semantically empty requirement/responsibility result once, while Stage 1a
+retries semantic dangling hazard/loss references once with concise validation
+feedback. Each attempt is logged separately in
 `calls.jsonl`; these retries do not change the manifest/result schemas or
 logical stage call counts, and exhaustion remains fatal.
 Stage 3 likewise retries a Pydantic-invalid slot response once with explicit

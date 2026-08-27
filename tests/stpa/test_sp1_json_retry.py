@@ -80,12 +80,42 @@ def test_stage2_json_decode_retry_is_bounded(tmp_path):
     assert [entry["success"] for entry in attempts] == [False, False]
 
 
-def test_stage2_semantic_failure_is_not_retried(tmp_path):
-    """Tolerant decoding does not retry semantically empty structured output."""
+def test_stage2_semantic_failure_gets_one_corrective_retry(tmp_path):
+    """A semantically empty tolerant result gets one bounded retry."""
     client: MockLLMClient = setup_sp1_mock_client()
     client.set_response_for(
         ResponsibilitySet,
         [{"responsibilities": []}, valid_responsibility_set_dict()],
+    )
+
+    result = run_sp1(
+        llm_client=client,
+        use_case_text="Test use case",
+        risk_cards=make_risk_cards(),
+        run_dir=tmp_path,
+    )
+
+    assert result.control_structure is not None
+    attempts = [
+        entry
+        for entry in read_calls_jsonl(tmp_path)
+        if entry["step"] == "call_2a_responsibilities"
+    ]
+    assert len(attempts) == 2
+    assert [entry["success"] for entry in attempts] == [False, True]
+    assert "ValueError" in attempts[0]["error"]
+
+
+def test_stage2_semantic_failure_retry_is_bounded(tmp_path):
+    """Two semantically empty results stop without consuming a third fixture."""
+    client: MockLLMClient = setup_sp1_mock_client()
+    client.set_response_for(
+        ResponsibilitySet,
+        [
+            {"responsibilities": []},
+            {"responsibilities": []},
+            valid_responsibility_set_dict(),
+        ],
     )
 
     result = run_sp1(
@@ -101,9 +131,9 @@ def test_stage2_semantic_failure_is_not_retried(tmp_path):
         for entry in read_calls_jsonl(tmp_path)
         if entry["step"] == "call_2a_responsibilities"
     ]
-    assert len(attempts) == 1
-    assert attempts[0]["success"] is False
-    assert "ValueError" in attempts[0]["error"]
+    assert len(attempts) == 2
+    assert [entry["success"] for entry in attempts] == [False, False]
+    assert all("ValueError" in entry["error"] for entry in attempts)
 
 
 def test_stage2_client_failure_is_not_retried(tmp_path):

@@ -301,7 +301,8 @@ def safe_llm_call(
         json_decode_retries: Number of extra attempts to make after a
             ``json.JSONDecodeError``. Defaults to zero.
         validation_retries: Number of extra attempts to make after Pydantic
-            validation fails. Defaults to zero; stages must opt in.
+            validation or the explicit ``result_validator`` fails. Defaults
+            to zero; stages must opt in.
         validation_retry_feedback: Optional text appended to the original user
             prompt on a validation retry.
 
@@ -316,6 +317,7 @@ def safe_llm_call(
     attempt_user_prompt = user_prompt
     while True:
         result: LLMResult | None = None
+        result_validation_failed = False
         try:
             completion_kwargs = _build_completion_kwargs(
                 system_prompt=system_prompt,
@@ -338,7 +340,11 @@ def safe_llm_call(
                 allow_unvalidated,
             )
             if result_validator is not None:
-                result_validator(model)
+                try:
+                    result_validator(model)
+                except Exception:
+                    result_validation_failed = True
+                    raise
             log_llm_call(result, llm_client.model, run_dir, stage, step)
             return model, result, None
         except Exception as exc:
@@ -359,7 +365,9 @@ def safe_llm_call(
             if isinstance(exc, json.JSONDecodeError) and json_retries_remaining:
                 json_retries_remaining -= 1
                 continue
-            if isinstance(exc, ValidationError) and validation_retries_remaining:
+            if (
+                isinstance(exc, ValidationError) or result_validation_failed
+            ) and validation_retries_remaining:
                 validation_retries_remaining -= 1
                 if validation_retry_feedback:
                     attempt_user_prompt = user_prompt + validation_retry_feedback

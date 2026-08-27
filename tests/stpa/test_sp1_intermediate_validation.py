@@ -62,8 +62,8 @@ def test_empty_requirements_are_logged_and_preserve_sp1_artifacts(tmp_path):
 
     calls = read_calls_jsonl(tmp_path)
     failed = [entry for entry in calls if entry["step"] == "call_1_requirements"]
-    assert len(failed) == 1
-    assert failed[0]["success"] is False
+    assert len(failed) == 2
+    assert all(entry["success"] is False for entry in failed)
     manifest = yaml.safe_load((tmp_path / "run-manifest.yaml").read_text())
     assert any("call_1_requirements" in error for error in manifest["stage_errors"])
 
@@ -87,8 +87,8 @@ def test_empty_responsibilities_are_logged_and_do_not_escape_validation_error(
 
     calls = read_calls_jsonl(tmp_path)
     failed = [entry for entry in calls if entry["step"] == "call_2a_responsibilities"]
-    assert len(failed) == 1
-    assert failed[0]["success"] is False
+    assert len(failed) == 2
+    assert all(entry["success"] is False for entry in failed)
     assert (tmp_path / "run-manifest.yaml").exists()
 
 

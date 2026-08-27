@@ -242,6 +242,50 @@ def _h_llm_failure_semantic_then_valid(
     return True, ""
 
 
+def _h_llm_failure_result_validator_then_valid(
+    world: World, text: str, examples: dict
+) -> tuple[bool, str]:
+    """Handle: queue a semantically rejected result followed by a valid one."""
+    world.llm_failure_retry_client = _FailureDefenseClient(
+        results=[
+            _retry_result({"value": "reject"}),
+            _retry_result({"value": "recovered"}),
+        ]
+    )
+    return True, ""
+
+
+def _h_llm_failure_result_validation_retry_call(
+    world: World, text: str, examples: dict
+) -> tuple[bool, str]:
+    """Handle: retry one failure raised by an explicit result validator."""
+    client = getattr(world, "llm_failure_retry_client", None)
+    if client is None:
+        return False, "No queued result-validation client configured"
+
+    def reject_first(model: _FailureDefenseResponse) -> None:
+        if model.value == "reject":
+            raise ValueError("result rejected")
+
+    parsed, _result, error = safe_llm_call(
+        llm_client=client,
+        system_prompt="system",
+        user_prompt="user",
+        response_format=_FailureDefenseResponse,
+        run_dir=_run_dir(world),
+        stage="stage_test",
+        step="step_test",
+        result_validator=reject_first,
+        validation_retries=1,
+        validation_retry_feedback="\n\ncorrective feedback",
+    )
+    world.llm_failure_client = client
+    world.llm_failure_parsed = parsed
+    world.llm_failure_error = error
+    world.llm_failure_outcome = "recovered" if error is None else "failed"
+    return True, ""
+
+
 def _h_llm_failure_validation_retry_call(
     world: World, text: str, examples: dict
 ) -> tuple[bool, str]:
@@ -622,6 +666,16 @@ def register(api: object) -> None:
         "the effective request timeout is 300 seconds from the application default$",
         _h_llm_failure_default_timeout,
         source_order=24026,
+    )
+    api.register(
+        "an LLM client returns a result-validator rejection followed by a valid structured response$",
+        _h_llm_failure_result_validator_then_valid,
+        source_order=24027,
+    )
+    api.register(
+        "a safe structured LLM call is made with one result-validation retry and corrective feedback$",
+        _h_llm_failure_result_validation_retry_call,
+        source_order=24028,
     )
     api.set_feature(None)
 

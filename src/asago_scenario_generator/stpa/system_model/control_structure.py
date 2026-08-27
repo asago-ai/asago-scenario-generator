@@ -46,6 +46,12 @@ STAGE = "stage_2"
 STAGE_2_CALL_COUNT = 4
 JSON_DECODE_RETRIES = 1
 DEFAULT_TEMPERATURE = 0.4
+_INTERMEDIATE_VALIDATION_RETRY_FEEDBACK = (
+    "\n\nThe prior response was semantically empty or invalid. Return a concise "
+    "schema-matching response and populate every required collection. In "
+    "particular, requirements and responsibilities must contain at least one "
+    "item when the requested schema includes them."
+)
 
 
 def _assembly_source_id_maps(
@@ -915,6 +921,8 @@ def _run_stage2_llm_call(
         allow_unvalidated=allow_unvalidated,
         result_validator=_validate_stage2_intermediate,
         json_decode_retries=JSON_DECODE_RETRIES,
+        validation_retries=1,
+        validation_retry_feedback=_INTERMEDIATE_VALIDATION_RETRY_FEEDBACK,
     )
     if error_msg is not None:
         raise StageError(stage=STAGE, step=step, message=error_msg)

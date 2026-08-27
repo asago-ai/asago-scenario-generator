@@ -96,3 +96,12 @@ Feature: LLM helper failure defenses
   Scenario: LLM-HELPER-FAILURE-DEFENSES-10 gives model calls a bounded default deadline
     When effective model configuration is resolved without a timeout override
     Then the effective request timeout is 300 seconds from the application default
+
+  # LLM-HELPER-FAILURE-DEFENSES-11
+  Scenario: LLM-HELPER-FAILURE-DEFENSES-11 retries explicit result validation only when requested
+    Given an LLM client returns a result-validator rejection followed by a valid structured response
+    When a safe structured LLM call is made with one result-validation retry and corrective feedback
+    Then the completion attempt count is 2
+    And the safe call outcome is recovered
+    And the second completion attempt includes corrective feedback
+    And the call log contains one failed and one successful attempt

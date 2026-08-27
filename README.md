@@ -174,7 +174,9 @@ The STPA run manifest records effective model name, base URL, token limit,
 temperature, `top_p`, `top_k`, guided-decoding state, and request timeout. API
 keys and header values are never included.
 
-Stage 3 retries a schema-invalid slot response once with corrective feedback.
+Stage 2 retries a semantically empty requirement or responsibility response
+once with corrective feedback. Stage 3 likewise retries a schema-invalid slot
+response once.
 If Stage 5 reaches the completion-length limit on both its normal and concise
 retry attempts, it records a fatal diagnostic and aborts the remaining threats
 instead of repeating a likely deployment-level structured-output failure.
