@@ -201,6 +201,16 @@ def _observed_gemma_control_element_set_dict() -> dict:
     return payload
 
 
+def _observed_gemma_invalid_feedback_update_dict() -> dict:
+    """Return the responsibility-shaped ``updates`` seen in live run 2."""
+    payload = valid_control_element_set_dict()
+    payload["feedback_channels"][0]["updates"] = {
+        "type": "responsibility",
+        "id": "RESP-1",
+    }
+    return payload
+
+
 class TestRunOrchestration:
     """SP1-RUN-01 through SP1-RUN-14."""
 
@@ -368,6 +378,39 @@ class TestRunOrchestration:
         assert responsibility.control_actions[0].target.id == "CP-1"
         assert responsibility.feedback_channels[0].source is not None
         assert responsibility.feedback_channels[0].source.id == "RESP-1"
+
+    def test_observed_invalid_feedback_update_is_contained_by_fallback(
+        self, tmp_path
+    ):
+        """An unresolvable object-shaped update cannot crash fallback repair."""
+        from asago_scenario_generator.stpa.system_model.control_structure import (
+            ControlElementSet,
+        )
+
+        client = _setup_mock_client()
+        client.set_response_for(
+            ControlElementSet,
+            _observed_gemma_invalid_feedback_update_dict(),
+        )
+
+        result = run_sp1(
+            llm_client=client,
+            use_case_text="Test use case",
+            risk_cards=make_risk_cards(),
+            run_dir=tmp_path,
+        )
+
+        assert result.control_structure is not None
+        assert result.stage_errors == []
+        assert any(
+            "Stripped invalid feedback channel FB-1-1" in warning
+            for warning in result.stage_warnings
+        )
+        assert all(
+            isinstance(channel.updates, str)
+            for responsibility in result.control_structure.responsibilities
+            for channel in responsibility.feedback_channels
+        )
 
     def test_run_manifest_records_profile_name(self, tmp_path):
         """A selected model profile is preserved in the manifest configuration."""

@@ -337,7 +337,8 @@ def _drop_invalid_feedback_updates(resp: Responsibility) -> list[str]:
     valid_channels: list[FeedbackChannel] = []
     warnings: list[str] = []
     for channel in resp.feedback_channels:
-        if channel.updates in pm_ids:
+        update_id = channel.updates
+        if isinstance(update_id, str) and update_id in pm_ids:
             valid_channels.append(channel)
             continue
         warnings.append(
