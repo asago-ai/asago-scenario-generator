@@ -95,10 +95,7 @@ def _looks_like_path_reference(content: str) -> bool:
     if "\n" in content or "\r" in content:
         return False
     reference = content.strip()
-    return (
-        len(reference) < 200
-        and reference.endswith((".txt", ".md"))
-    )
+    return len(reference) < 200 and reference.endswith((".txt", ".md"))
 
 
 def _resolve_reference_path(reference: str, source_file: Path) -> Path:
