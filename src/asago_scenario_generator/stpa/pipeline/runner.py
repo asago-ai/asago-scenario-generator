@@ -55,6 +55,7 @@ class STPARunResult:
     sp3_result: SP3RunResult | None = None
     report_path: Path | None = None
     stage_errors: list[str] = field(default_factory=list)
+    stage_warnings: list[str] = field(default_factory=list)
 
 
 def run_stpa_pipeline(
@@ -88,16 +89,16 @@ def run_stpa_pipeline(
             passed to SP3 for envelope enrichment.
         max_workers: Parallel workers for LLM calls within stages.
         resume: When True, skip stages whose artifacts already exist.
-        temperature: Explicit LLM sampling temperature for all stages.
-            When None (default), each stage uses its resolved model
-            profile's temperature (or 0.4 without a profile), so the
-            profile's ``temperature`` field is no longer dead config.
+        temperature: Explicit temperature override for every stage. When
+            omitted, each stage uses its resolved profile or environment
+            configuration, then the shared 0.4 default.
 
     Returns:
         An :class:`STPARunResult` with per-stage results and the report path.
     """
     output_dir = Path(output_dir)
     stage_errors: list[str] = []
+    stage_warnings: list[str] = []
 
     # --- Step 0: Input validation ---
     _validate_inputs(
@@ -129,6 +130,7 @@ def run_stpa_pipeline(
         capability_profile_path=capability_profile_path,
         max_workers=max_workers,
         stage_errors=stage_errors,
+        stage_warnings=stage_warnings,
         temperature=temperature,
     )
 
@@ -145,7 +147,17 @@ def run_stpa_pipeline(
         "control-structure.yaml",
         stage_errors,
     ):
-        return STPARunResult(sp1_result=sp1_result, stage_errors=stage_errors)
+        _persist_pipeline_diagnostics(
+            output_dir,
+            sp1_result=sp1_result,
+            stage_errors=stage_errors,
+            stage_warnings=stage_warnings,
+        )
+        return STPARunResult(
+            sp1_result=sp1_result,
+            stage_errors=stage_errors,
+            stage_warnings=stage_warnings,
+        )
 
     capability_profile = _load_sp1_artifact(
         output_dir,
@@ -191,10 +203,17 @@ def run_stpa_pipeline(
         "enriched-threats.yaml",
         stage_errors,
     ):
+        _persist_pipeline_diagnostics(
+            output_dir,
+            sp1_result=sp1_result,
+            stage_errors=stage_errors,
+            stage_warnings=stage_warnings,
+        )
         return STPARunResult(
             sp1_result=sp1_result,
             sp2_result=sp2_result,
             stage_errors=stage_errors,
+            stage_warnings=stage_warnings,
         )
 
     # --- Step 3: SP3 ---
@@ -205,7 +224,6 @@ def run_stpa_pipeline(
     )
     sp3_result = _run_sp3_stage(
         skip=skip_sp3,
-        temperature=temperature,
         output_dir=output_dir,
         enriched_threat_set=enriched_threat_set,
         control_structure=control_structure,
@@ -216,11 +234,17 @@ def run_stpa_pipeline(
         capability_profile_path=capability_profile_path,
         max_workers=max_workers,
         stage_errors=stage_errors,
+        temperature=temperature,
     )
 
-    # Later stages share the same manifest path, so restore SP1's revision
+    # Later stages share the same manifest path, so restore the combined
     # diagnostics after their manifests have been written.
-    _persist_sp1_revision_diagnostics(output_dir, sp1_result)
+    _persist_pipeline_diagnostics(
+        output_dir,
+        sp1_result=sp1_result,
+        stage_errors=stage_errors,
+        stage_warnings=stage_warnings,
+    )
 
     # --- Step 4: Report (always) ---
     report_path = _generate_report(output_dir)
@@ -233,6 +257,7 @@ def run_stpa_pipeline(
         report_path=report_path,
         output_dir=output_dir,
         stage_errors=stage_errors,
+        stage_warnings=stage_warnings,
     )
 
     return STPARunResult(
@@ -241,6 +266,30 @@ def run_stpa_pipeline(
         sp3_result=sp3_result,
         report_path=report_path,
         stage_errors=stage_errors,
+        stage_warnings=stage_warnings,
+    )
+
+
+def _persist_pipeline_diagnostics(
+    output_dir: Path,
+    *,
+    sp1_result: SP1RunResult | None,
+    stage_errors: list[str],
+    stage_warnings: list[str],
+) -> None:
+    """Preserve combined fatal and recoverable diagnostics in the manifest."""
+    manifest_path = output_dir / "run-manifest.yaml"
+    if not manifest_path.exists():
+        return
+    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
+    manifest["stage_errors"] = stage_errors
+    manifest["stage_warnings"] = stage_warnings
+    if sp1_result is not None:
+        manifest["revised"] = sp1_result.revised
+        manifest["post_revision_warnings"] = sp1_result.post_revision_warnings
+    manifest_path.write_text(
+        yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
     )
 
 
@@ -248,7 +297,7 @@ def _persist_sp1_revision_diagnostics(
     output_dir: Path,
     sp1_result: SP1RunResult | None,
 ) -> None:
-    """Preserve SP1 revision diagnostics in the combined run manifest."""
+    """Compatibility wrapper preserving the former SP1-only manifest update."""
     if sp1_result is None:
         return
     manifest_path = output_dir / "run-manifest.yaml"
@@ -370,6 +419,7 @@ def _run_sp1_stage(
     capability_profile_path: Path | None,
     max_workers: int,
     stage_errors: list[str],
+    stage_warnings: list[str] | None = None,
     temperature: float | None = None,
 ) -> SP1RunResult | None:
     """Run SP1 and render calls.html, or return None when skipping."""
@@ -404,6 +454,13 @@ def _run_sp1_stage(
     if result.stage_errors:
         logger.warning("SP1 completed with %d stage errors", len(result.stage_errors))
         stage_errors.extend(result.stage_errors)
+    if result.stage_warnings:
+        logger.warning(
+            "SP1 completed with %d recoverable warnings",
+            len(result.stage_warnings),
+        )
+        if stage_warnings is not None:
+            stage_warnings.extend(result.stage_warnings)
 
     return result
 
@@ -593,6 +650,7 @@ def _print_summary(
     report_path: Path,
     output_dir: Path,
     stage_errors: list[str],
+    stage_warnings: list[str] | None = None,
 ) -> None:
     """Print a combined summary table to stdout."""
     print("")
@@ -605,6 +663,7 @@ def _print_summary(
     _print_sp3_summary(sp3_result)
     _print_report_summary(report_path)
     _print_stage_errors_summary(stage_errors)
+    _print_stage_warnings_summary(stage_warnings or [])
 
     print("=" * 60)
 
@@ -764,6 +823,16 @@ def _print_stage_errors_summary(stage_errors: list[str]) -> None:
     print(f"  Stage Errors: {len(stage_errors)}")
     for err in stage_errors:
         print(f"    - {err}")
+
+
+def _print_stage_warnings_summary(stage_warnings: list[str]) -> None:
+    """Print recoverable stage warning counts when warnings are present."""
+    if not stage_warnings:
+        return
+    print("")
+    print(f"  Stage Warnings: {len(stage_warnings)}")
+    for warning in stage_warnings:
+        print(f"    - {warning}")
 
 
 # mutate4py-manifest-begin

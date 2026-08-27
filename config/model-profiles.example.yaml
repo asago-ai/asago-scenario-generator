@@ -10,7 +10,11 @@ gemma4-local:
   base_url: https://your-local-endpoint.example.com/v1
   model: gemma-4-26b-a4b-it
   api_key: unused
-  temperature: 0.4
+  max_completion_tokens: 16384
+  temperature: 1.0
+  top_p: 0.95
+  top_k: 64
+  use_guided_decoding: false
 gemma4-oc-taxonomy:
   base_url: https://your-openshift-gemma-endpoint.example.com/v1
   model: gemma-4-26b-a4b-it

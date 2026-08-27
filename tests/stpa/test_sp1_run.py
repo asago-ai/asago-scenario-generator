@@ -6,6 +6,7 @@ Covers SP1-RUN-01 through SP1-RUN-14 from the Gherkin feature file.
 from __future__ import annotations
 
 import json
+import warnings
 
 
 from asago_scenario_generator.models.capability_profile import (
@@ -15,7 +16,10 @@ from asago_scenario_generator.models.capability_profile import (
 from asago_scenario_generator.stpa.infra.yaml_io import write_yaml
 from asago_scenario_generator.stpa.models.control_structure import ControlStructure
 from asago_scenario_generator.stpa.models.loss_analysis import LossAnalysis
-from asago_scenario_generator.stpa.system_model.critic import CriticFindings, RevisionDelta
+from asago_scenario_generator.stpa.system_model.critic import (
+    CriticFindings,
+    RevisionDelta,
+)
 from asago_scenario_generator.stpa.system_model.run import run_sp1
 from tests.stpa.sp1_helpers import (
     MockLLMClient,
@@ -76,8 +80,10 @@ def _setup_mock_client(
     # Stage 1a: two calls (risk_derivation + gap_analysis) both use LossAnalysisDraft
     from asago_scenario_generator.stpa.models.loss_analysis import LossAnalysisDraft
     from tests.stpa.sp1_helpers import valid_risk_draft_dict, valid_gap_draft_dict
+
     client.set_response_for(
-        LossAnalysisDraft, [valid_risk_draft_dict(), valid_gap_draft_dict()],
+        LossAnalysisDraft,
+        [valid_risk_draft_dict(), valid_gap_draft_dict()],
     )
 
     # Stage 1b: Stage1Profile
@@ -131,6 +137,25 @@ def _setup_mock_client(
         client.set_response_for(RevisionDelta, delta_dict)
 
     return client
+
+
+def _observed_gemma_control_element_set_dict() -> dict:
+    """Return the schema-adjacent reference shapes reported in issue #36."""
+    payload = valid_control_element_set_dict()
+    payload["control_actions"][0]["target"] = {
+        "type": "CP-5",
+    }
+    payload["feedback_channels"][0]["updates"] = {
+        "type": "process_model_part",
+        "id": "PM-1-1",
+    }
+    payload["feedback_channels"][0]["source"] = {
+        "type": "RESP-1",
+    }
+    payload["controlled_processes"] = [
+        {"cp_id": "CP-5", "description": "Observed controlled process"}
+    ]
+    return payload
 
 
 class TestRunOrchestration:
@@ -190,6 +215,26 @@ class TestRunOrchestration:
         assert "stage_1b" in stages
         assert "stage_2" in stages
 
+    def test_run_inherits_effective_client_temperature(self, tmp_path):
+        """Stage defaults do not override the resolved client configuration."""
+        client = _setup_mock_client()
+        client.temperature = 1.0
+
+        run_sp1(
+            llm_client=client,
+            use_case_text="Test use case",
+            risk_cards=make_risk_cards(),
+            run_dir=tmp_path,
+        )
+
+        assert client.calls
+        assert {call.temperature for call in client.calls} == {1.0}
+
+        import yaml
+
+        manifest = yaml.safe_load((tmp_path / "run-manifest.yaml").read_text())
+        assert manifest["model_settings"]["temperature"] == 1.0
+
     def test_run_04_run_manifest_written(self, tmp_path):
         """SP1-RUN-04: run manifest is written with stage_summary."""
         client = _setup_mock_client()
@@ -208,6 +253,45 @@ class TestRunOrchestration:
         assert "stage_1a" in manifest["stage_summary"]
         assert "stage_2" in manifest["stage_summary"]
 
+    def test_observed_gemma_references_normalize_before_typed_serialization(
+        self, tmp_path
+    ):
+        """Tolerated raw references never serialize as an invalid typed graph."""
+        client = _setup_mock_client()
+        from asago_scenario_generator.stpa.system_model.control_structure import (
+            ControlElementSet,
+        )
+
+        client.set_response_for(
+            ControlElementSet,
+            _observed_gemma_control_element_set_dict(),
+        )
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = run_sp1(
+                llm_client=client,
+                use_case_text="Test use case",
+                risk_cards=make_risk_cards(),
+                run_dir=tmp_path,
+            )
+
+        serializer_warnings = [
+            warning
+            for warning in caught
+            if "Pydantic serializer warnings" in str(warning.message)
+        ]
+        assert serializer_warnings == []
+        assert result.control_structure is not None
+        ControlStructure.model_validate(
+            result.control_structure.model_dump(mode="python")
+        )
+        responsibility = result.control_structure.responsibilities[0]
+        assert responsibility.control_actions[0].target is not None
+        assert responsibility.control_actions[0].target.id == "CP-1"
+        assert responsibility.feedback_channels[0].source is not None
+        assert responsibility.feedback_channels[0].source.id == "RESP-1"
+
     def test_run_manifest_records_profile_name(self, tmp_path):
         """A selected model profile is preserved in the manifest configuration."""
         client = _setup_mock_client()
@@ -221,10 +305,38 @@ class TestRunOrchestration:
 
         import yaml
 
-        manifest = yaml.safe_load(
-            (tmp_path / "run-manifest.yaml").read_text()
-        )
+        manifest = yaml.safe_load((tmp_path / "run-manifest.yaml").read_text())
         assert manifest["model_settings"]["profile"] == "production-profile"
+
+    def test_run_manifest_records_effective_non_secret_sampling(self, tmp_path):
+        client = _setup_mock_client()
+        client.max_completion_tokens = 16384
+        client.temperature = 1.0
+        client.top_p = 0.95
+        client.top_k = 64
+        client.use_guided_decoding = True
+        client.api_key = "must-not-appear"
+        client.extra_headers = {"Authorization": "must-not-appear"}
+
+        run_sp1(
+            llm_client=client,
+            use_case_text="Test use case",
+            risk_cards=make_risk_cards(),
+            run_dir=tmp_path,
+        )
+
+        import yaml
+
+        manifest = yaml.safe_load((tmp_path / "run-manifest.yaml").read_text())
+        settings = manifest["model_settings"]
+        assert settings["max_completion_tokens"] == 16384
+        assert settings["temperature"] == 1.0
+        assert settings["top_p"] == 0.95
+        assert settings["top_k"] == 64
+        assert settings["use_guided_decoding"] is True
+        assert "api_key" not in settings
+        assert "headers" not in settings
+        assert "must-not-appear" not in (tmp_path / "run-manifest.yaml").read_text()
 
     def test_run_05_manifest_records_critic_findings(self, tmp_path):
         """SP1-RUN-05: run manifest records critic findings count."""
@@ -302,15 +414,24 @@ class TestRunOrchestration:
         from asago_scenario_generator.stpa.system_model import PROMPTS_DIR
 
         expected = [
-            "stage1a_risk_system.j2", "stage1a_risk_user.j2",
-            "stage1a_gap_system.j2", "stage1a_gap_user.j2",
-            "stage1b_system.j2", "stage1b_user.j2",
-            "stage2_call1_system.j2", "stage2_call1_user.j2",
-            "stage2_call2a_system.j2", "stage2_call2a_user.j2",
-            "stage2_call2b_system.j2", "stage2_call2b_user.j2",
-            "stage2_call3_system.j2", "stage2_call3_user.j2",
-            "critic_system.j2", "critic_user.j2",
-            "revision_system.j2", "revision_user.j2",
+            "stage1a_risk_system.j2",
+            "stage1a_risk_user.j2",
+            "stage1a_gap_system.j2",
+            "stage1a_gap_user.j2",
+            "stage1b_system.j2",
+            "stage1b_user.j2",
+            "stage2_call1_system.j2",
+            "stage2_call1_user.j2",
+            "stage2_call2a_system.j2",
+            "stage2_call2a_user.j2",
+            "stage2_call2b_system.j2",
+            "stage2_call2b_user.j2",
+            "stage2_call3_system.j2",
+            "stage2_call3_user.j2",
+            "critic_system.j2",
+            "critic_user.j2",
+            "revision_system.j2",
+            "revision_user.j2",
         ]
         for name in expected:
             assert (PROMPTS_DIR / name).exists(), f"Missing template: {name}"
@@ -332,6 +453,7 @@ class TestRunOrchestration:
             heuristics,
             run,
         )
+
         assert loss_analysis is not None
         assert profile is not None
         assert control_structure is not None
@@ -348,6 +470,7 @@ class TestRunOrchestration:
             CriticFindings,
             CriticGap,
         )
+
         assert RequirementSet is not None
         assert Requirement is not None
         assert ResponsibilitySet is not None
@@ -359,7 +482,11 @@ class TestRunOrchestration:
         # Write a pre-built profile
         profile = Stage1Profile(
             entry_points=[
-                {"name": "User chat", "direction": "input", "controllability": "direct"},
+                {
+                    "name": "User chat",
+                    "direction": "input",
+                    "controllability": "direct",
+                },
             ],
             confidence="medium",
             kc_subcodes=["KC1.1", "KC5.1", "KC6.1.1"],
@@ -385,7 +512,11 @@ class TestRunOrchestration:
         """A pre-built profile outside the run directory is copied to outputs."""
         profile = Stage1Profile(
             entry_points=[
-                {"name": "User chat", "direction": "input", "controllability": "direct"},
+                {
+                    "name": "User chat",
+                    "direction": "input",
+                    "controllability": "direct",
+                },
             ],
             confidence="medium",
             kc_subcodes=["KC1.1", "KC5.1", "KC6.1.1"],

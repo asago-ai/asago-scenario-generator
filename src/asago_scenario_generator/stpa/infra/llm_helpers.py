@@ -19,6 +19,7 @@ from asago_scenario_generator.stpa.infra.call_log import (
 from asago_scenario_generator.stpa.infra.llm import LLMClient, LLMResult
 from asago_scenario_generator.stpa.infra.unvalidated_decode import (
     construct_model_unvalidated,
+    raw_model_data,
 )
 
 _T = TypeVar("_T", bound=BaseModel)
@@ -48,7 +49,7 @@ def _stringify_response_content(content: Any) -> str:
     if content is None:
         return ""
     if isinstance(content, BaseModel):
-        return content.model_dump_json()
+        return json.dumps(raw_model_data(content))
     if isinstance(content, dict):
         return json.dumps(content)
     return str(content)
@@ -89,7 +90,7 @@ def _decode_llm_content(result: LLMResult) -> Any:
     """Decode the JSON-shaped content of an LLM result without validation."""
     content = result.content
     if isinstance(content, BaseModel):
-        return content.model_dump(mode="python", exclude_none=False)
+        return raw_model_data(content)
     if isinstance(content, dict):
         return content
     if isinstance(content, str):

@@ -106,7 +106,7 @@ def register(api: object) -> None:
         "no assembly failure is logged", _h_ar_no_assembly_failure, source_order=21837
     )
     api.register_first(
-        "the SP1RunResult stage_errors contains the assemble_control_structure failure",
+        "the SP1RunResult stage_warnings contains the assemble_control_structure repair",
         _h_ar_sp1_assembly_error,
         source_order=21838,
     )

@@ -131,8 +131,8 @@ def stpa_run_cmd(
     ),
     temperature: float | None = typer.Option(
         None,
-        help="LLM sampling temperature for all stages. Defaults to the "
-        "selected model profile's value, or 0.4 without a profile.",
+        help="Override the resolved sampling temperature for every STPA stage. "
+        "Defaults to the selected profile or environment value, then 0.4.",
     ),
 ) -> None:
     """Run the full STPA pipeline: SP1 → SP2 → SP3 → report."""
