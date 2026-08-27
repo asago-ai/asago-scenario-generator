@@ -39,6 +39,7 @@ variables:
 - `ASAGO_SCENARIO_GENERATOR_TOP_P`
 - `ASAGO_SCENARIO_GENERATOR_TOP_K`
 - `ASAGO_SCENARIO_GENERATOR_USE_GUIDED_DECODING`
+- `ASAGO_SCENARIO_GENERATOR_TIMEOUT`
 - `ASAGO_SCENARIO_GENERATOR_EXTRA_HEADERS`
 
 For named model profiles, copy
@@ -49,6 +50,10 @@ through both routes: an explicit Python/CLI argument, then the selected profile
 or environment value, then the client default. The CLI currently exposes
 `--temperature` as the run-wide explicit sampling override. Invalid numeric or
 boolean environment values fail before the first model call.
+Requests have a 300-second application default deadline. Named-profile
+`timeout` and `ASAGO_SCENARIO_GENERATOR_TIMEOUT` values override that default.
+The SDK's implicit retries are disabled so retry decisions remain bounded and
+visible in pipeline evidence.
 
 Gemma 4 deployments used for structured generation need a compact JSON grammar
 configuration to avoid valid-prefix responses stalling on whitespace. See the
@@ -157,6 +162,7 @@ export ASAGO_SCENARIO_GENERATOR_TEMPERATURE=1.0
 export ASAGO_SCENARIO_GENERATOR_TOP_P=0.95
 export ASAGO_SCENARIO_GENERATOR_TOP_K=64
 export ASAGO_SCENARIO_GENERATOR_USE_GUIDED_DECODING=false
+export ASAGO_SCENARIO_GENERATOR_TIMEOUT=300
 
 asago-scenario-generator stpa-run \
   --use-case use-case.txt \
@@ -165,8 +171,13 @@ asago-scenario-generator stpa-run \
 ```
 
 The STPA run manifest records effective model name, base URL, token limit,
-temperature, `top_p`, `top_k`, and guided-decoding state. API keys and header
-values are never included.
+temperature, `top_p`, `top_k`, guided-decoding state, and request timeout. API
+keys and header values are never included.
+
+Stage 3 retries a schema-invalid slot response once with corrective feedback.
+If Stage 5 reaches the completion-length limit on both its normal and concise
+retry attempts, it records a fatal diagnostic and aborts the remaining threats
+instead of repeating a likely deployment-level structured-output failure.
 
 STPA result and manifest diagnostics retain `stage_errors` for fatal stage
 failures and add `stage_warnings` for recoverable normalization, stitching, and

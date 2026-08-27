@@ -579,6 +579,37 @@ class TestErrorPaths:
                 "Stage 5 BDI generation failed" in e for e in result.stage_errors
             )
 
+    def test_repeated_structured_length_failure_aborts_remaining_threats(self):
+        """An exhausted length retry opens the circuit before later threats run."""
+
+        class LengthFinishReasonError(Exception):
+            pass
+
+        cs = _make_cs()
+        la = _make_loss_analysis()
+        ets = _make_ets(num_threats=3)
+        client = MockLLMClient()
+        client.set_exception_for(
+            BDIGenerationResult,
+            LengthFinishReasonError("structured response reached its length limit"),
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            result = run_sp3(
+                llm_client=client,
+                enriched_threat_set=ets,
+                control_structure=cs,
+                loss_analysis=la,
+                run_dir=Path(tmpdir),
+            )
+
+        assert client.call_count == 2
+        assert any(
+            "aborted 2 remaining threats" in error
+            and "structured-output" in error
+            for error in result.stage_errors
+        )
+
     def test_stage6_llm_failure_uses_fallbacks(self):
         """Stage 6 LLM failures produce envelopes with fallback empty artifacts."""
         cs = _make_cs()

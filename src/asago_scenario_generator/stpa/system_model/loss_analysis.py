@@ -37,6 +37,14 @@ STEP_MERGE = "merge"
 DEFAULT_TEMPERATURE = 0.4
 
 
+class _DraftReferenceValidationError(ValueError):
+    """Validation failure that can be sent back as bounded retry feedback."""
+
+    def __init__(self, message: str, *, feedback: str) -> None:
+        super().__init__(message)
+        self.feedback = feedback
+
+
 def derive_loss_analysis(
     *,
     llm_client: LLMClient,
@@ -87,6 +95,8 @@ def derive_loss_analysis(
         temperature=temperature,
         use_case_text=use_case_text,
         risk_cards=risk_cards,
+        allowed_loss_ids=set(),
+        allowed_hazard_ids=set(),
     )
 
     # --- Compute next IDs for gap analysis ---
@@ -126,6 +136,11 @@ def derive_loss_analysis(
         next_hazard_num=next_hazard_num,
         next_sc_num=next_sc_num,
         kc_subcodes=kc_subcodes,
+        allowed_loss_ids={
+            loss.loss_id
+            for loss in risk_draft.risk_card_losses + risk_draft.use_case_losses
+        },
+        allowed_hazard_ids={hazard.hazard_id for hazard in risk_draft.hazards},
     )
 
     # --- Merge and validate ---
@@ -153,6 +168,8 @@ def _run_stage1a_call(
     run_dir: Path,
     step: str,
     temperature: float,
+    allowed_loss_ids: set[str],
+    allowed_hazard_ids: set[str],
     **template_vars: object,
 ) -> LossAnalysisDraft:
     """Render prompts, call the LLM, and return a validated draft.
@@ -163,6 +180,21 @@ def _run_stage1a_call(
     system_prompt = loader.render_prompt(system_template)
     user_prompt = loader.render_prompt(user_template, **template_vars)
 
+    validation_feedback: str | None = None
+
+    def validate_references(draft: LossAnalysisDraft) -> None:
+        nonlocal validation_feedback
+        try:
+            _validate_draft_references(
+                draft,
+                context=step,
+                allowed_loss_ids=allowed_loss_ids,
+                allowed_hazard_ids=allowed_hazard_ids,
+            )
+        except _DraftReferenceValidationError as exc:
+            validation_feedback = exc.feedback
+            raise
+
     draft, _, error_msg = safe_llm_call(
         llm_client=llm_client,
         system_prompt=system_prompt,
@@ -172,12 +204,111 @@ def _run_stage1a_call(
         stage=STAGE,
         step=step,
         temperature=temperature,
+        result_validator=validate_references,
     )
-    if error_msg is not None:
+    if error_msg is None:
+        assert draft is not None  # safe_llm_call guarantees this on success
+        return draft
+
+    # Reference validation is deterministic and actionable, so give the model
+    # one bounded retry.  Parse/network failures do not get a duplicate call.
+    if validation_feedback is None:
         raise StageError(stage=STAGE, step=step, message=error_msg)
+
+    retry_prompt = (
+        f"{user_prompt}\n\n{validation_feedback}\n"
+        "Return only the corrected structured object."
+    )
+
+    def validate_retry_references(draft: LossAnalysisDraft) -> None:
+        _validate_draft_references(
+            draft,
+            context=step,
+            allowed_loss_ids=allowed_loss_ids,
+            allowed_hazard_ids=allowed_hazard_ids,
+        )
+
+    draft, _, retry_error_msg = safe_llm_call(
+        llm_client=llm_client,
+        system_prompt=system_prompt,
+        user_prompt=retry_prompt,
+        response_format=LossAnalysisDraft,
+        run_dir=run_dir,
+        stage=STAGE,
+        step=step,
+        temperature=temperature,
+        result_validator=validate_retry_references,
+    )
+    if retry_error_msg is not None:
+        raise StageError(
+            stage=STAGE,
+            step=step,
+            message=f"{error_msg}; retry failed: {retry_error_msg}",
+        )
 
     assert draft is not None  # safe_llm_call guarantees this on success
     return draft
+
+
+def _validate_draft_references(
+    draft: LossAnalysisDraft,
+    *,
+    context: str,
+    allowed_loss_ids: set[str],
+    allowed_hazard_ids: set[str],
+) -> None:
+    """Validate draft references before a draft is accepted or serialized.
+
+    ``risk_derivation`` is self-contained.  ``gap_analysis`` may reference
+    the existing risk draft in addition to IDs introduced by its own draft.
+    The caller supplies the existing IDs; local IDs are always added here.
+    """
+    local_loss_ids = {
+        loss.loss_id for loss in draft.risk_card_losses + draft.use_case_losses
+    }
+    local_hazard_ids = {hazard.hazard_id for hazard in draft.hazards}
+    valid_loss_ids = allowed_loss_ids | local_loss_ids
+    valid_hazard_ids = allowed_hazard_ids | local_hazard_ids
+
+    unknown_loss_ids = sorted(
+        {
+            reference
+            for hazard in draft.hazards
+            for reference in hazard.related_losses
+            if reference not in valid_loss_ids
+        }
+    )
+    unknown_hazard_ids = sorted(
+        {
+            reference
+            for constraint in draft.security_constraints
+            for reference in constraint.related_hazards
+            if reference not in valid_hazard_ids
+        }
+    )
+    if not unknown_loss_ids and not unknown_hazard_ids:
+        return
+
+    problems: list[str] = []
+    if unknown_loss_ids:
+        problems.append(
+            "hazards.related_losses unknown IDs: " + ", ".join(unknown_loss_ids)
+        )
+    if unknown_hazard_ids:
+        problems.append(
+            "security_constraints.related_hazards unknown IDs: "
+            + ", ".join(unknown_hazard_ids)
+        )
+    message = f"{context} draft has invalid cross-references: " + "; ".join(problems)
+    if context == STEP_RISK:
+        scope = "IDs declared in the risk_derivation draft"
+    else:
+        scope = "IDs declared in the risk_derivation or gap_analysis draft"
+    feedback = (
+        f"Validation feedback: {message}. Use only {scope}; preserve every "
+        "loss, hazard, and security constraint."
+    )
+    raise _DraftReferenceValidationError(message, feedback=feedback)
 
 
 def _max_id_num(ids: list[str], prefix: str) -> int:

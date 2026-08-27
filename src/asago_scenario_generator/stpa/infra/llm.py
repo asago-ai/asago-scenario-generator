@@ -15,6 +15,8 @@ from typing import Any
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
+from asago_scenario_generator.model_profiles import DEFAULT_REQUEST_TIMEOUT_SECONDS
+
 DEFAULT_TEMPERATURE: float = 0.4
 
 _ENV_MAX_COMPLETION_TOKENS = "ASAGO_SCENARIO_GENERATOR_MAX_COMPLETION_TOKENS"
@@ -22,6 +24,7 @@ _ENV_TEMPERATURE = "ASAGO_SCENARIO_GENERATOR_TEMPERATURE"
 _ENV_TOP_P = "ASAGO_SCENARIO_GENERATOR_TOP_P"
 _ENV_TOP_K = "ASAGO_SCENARIO_GENERATOR_TOP_K"
 _ENV_USE_GUIDED_DECODING = "ASAGO_SCENARIO_GENERATOR_USE_GUIDED_DECODING"
+_ENV_TIMEOUT = "ASAGO_SCENARIO_GENERATOR_TIMEOUT"
 
 _OPENROUTER_DEFAULT_HEADERS: dict[str, str] = {
     "HTTP-Referer": "https://github.com/asago-ai/asago-scenario-generator",
@@ -51,6 +54,15 @@ def _resolve_max_tokens(
     if not env_var:
         return None
     return _validated_int(env_var, _ENV_MAX_COMPLETION_TOKENS, minimum=1)
+
+
+def _resolve_timeout(explicit: float | None, env_var: str | None) -> float:
+    """Resolve a positive request deadline from explicit, env, or default."""
+    if explicit is not None:
+        return _validated_float(explicit, "timeout", minimum=0.000001)
+    if env_var is not None:
+        return _validated_float(env_var, _ENV_TIMEOUT, minimum=0.000001)
+    return DEFAULT_REQUEST_TIMEOUT_SECONDS
 
 
 def _validated_float(
@@ -258,6 +270,7 @@ class LLMClient:
         top_p: float | None = None,
         top_k: int | None = None,
         use_guided_decoding: bool | None = None,
+        timeout: float | None = None,
     ) -> None:
         self.base_url = _resolve_base_url(base_url)
         self.api_key = _resolve_api_key(api_key)
@@ -286,6 +299,7 @@ class LLMClient:
             _ENV_USE_GUIDED_DECODING,
             False,
         )
+        self.timeout = _resolve_timeout(timeout, os.environ.get(_ENV_TIMEOUT))
 
         if not self.base_url:
             raise ValueError(
@@ -296,6 +310,8 @@ class LLMClient:
             base_url=self.base_url,
             api_key=self.api_key,
             default_headers=self.extra_headers or None,
+            timeout=self.timeout,
+            max_retries=0,
         )
 
     def _build_extra_kwargs(
@@ -413,6 +429,7 @@ def effective_model_config(
         "top_p": getattr(client, "top_p", None),
         "top_k": getattr(client, "top_k", None),
         "use_guided_decoding": getattr(client, "use_guided_decoding", False),
+        "timeout": getattr(client, "timeout", DEFAULT_REQUEST_TIMEOUT_SECONDS),
     }
 
 

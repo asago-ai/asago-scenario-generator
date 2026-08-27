@@ -163,11 +163,26 @@ objects are never serialized. Stage 1a classifies losses from either
 intermediate container by typed provenance, deduplicates identical repeats,
 and reports conflicting IDs as fatal stage errors. Stage 2 rejects empty
 requirement/responsibility sets, and an exhausted fallback is fatal. The
+STPA retry contract is bounded: Stage 2 retries a JSON-decoding failure once,
+while Stage 1a retries semantic dangling hazard/loss references once with
+concise validation feedback. Each attempt is logged separately in
+`calls.jsonl`; these retries do not change the manifest/result schemas or
+logical stage call counts, and exhaustion remains fatal.
+Stage 3 likewise retries a Pydantic-invalid slot response once with explicit
+slot-consistency feedback. Stage 5 retains one concise retry for an isolated
+completion-length failure; if that retry is also exhausted, the stage records a
+fatal diagnostic and stops processing the remaining threats because repeating
+the same structured-output deployment failure cannot improve the run.
 public SP1 result and run-manifest schemas are unchanged: fatal diagnostics
 use the existing `stage_errors` fields, while recoverable assembly repairs
 remain in `stage_warnings`. STPA sampling resolves explicit arguments before
 profile/environment values and defaults, and manifests persist the effective
 non-secret settings.
+
+Both workflows apply a 300-second request deadline by default, configurable via
+the named-profile `timeout` field or `ASAGO_SCENARIO_GENERATOR_TIMEOUT`. Hidden
+OpenAI SDK retries are disabled; all retry policy therefore remains explicit,
+bounded, and observable in pipeline evidence.
 
 Post-SP3 execution projection exposes a platform-neutral
 `CandidateExecutionEnvelope` for one unsafe control action. Its canonical

@@ -44,6 +44,7 @@ from asago_scenario_generator.stpa.system_model.id_normalization import (
 
 STAGE = "stage_2"
 STAGE_2_CALL_COUNT = 4
+JSON_DECODE_RETRIES = 1
 DEFAULT_TEMPERATURE = 0.4
 
 
@@ -913,6 +914,7 @@ def _run_stage2_llm_call(
         temperature=temperature,
         allow_unvalidated=allow_unvalidated,
         result_validator=_validate_stage2_intermediate,
+        json_decode_retries=JSON_DECODE_RETRIES,
     )
     if error_msg is not None:
         raise StageError(stage=STAGE, step=step, message=error_msg)

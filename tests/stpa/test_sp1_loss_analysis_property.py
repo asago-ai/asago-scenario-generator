@@ -789,7 +789,7 @@ class TestCallLogOrderingAndProfileSkip:
             {
                 "hazard_id": "H-2",
                 "description": "Hazard 2",
-                "related_losses": [f"L-{n_risk_losses + 1}"],
+                "related_losses": [gap["use_case_losses"][0]["loss_id"]],
             }
         ]
         gap["security_constraints"] = [

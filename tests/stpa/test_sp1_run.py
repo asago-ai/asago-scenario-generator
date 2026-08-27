@@ -26,8 +26,10 @@ from tests.stpa.sp1_helpers import (
     make_risk_cards,
     valid_control_element_set_dict,
     valid_empty_coordination_analysis_dict,
+    valid_gap_draft_dict,
     valid_requirement_set_dict,
     valid_responsibility_set_dict,
+    valid_risk_draft_dict,
     valid_stage1_profile_dict,
 )
 
@@ -68,6 +70,47 @@ def _valid_critic_findings_dict() -> dict:
         },
         "taxonomy_probe_results": {},
     }
+
+
+def _run3_invalid_risk_draft_dict() -> dict:
+    """Return the sanitized Stage 1a shape from the run-3 artifact."""
+    draft = valid_risk_draft_dict()
+    draft["security_constraints"] = [
+        {
+            "constraint_id": f"SC-{index}",
+            "description": f"Constraint {index}",
+            "related_hazards": [f"H-{index + 1}"],
+        }
+        for index in range(1, 7)
+    ]
+    return draft
+
+
+def _run3_corrected_risk_draft_dict() -> dict:
+    """Return the bounded-retry correction without dropping constraints."""
+    draft = _run3_invalid_risk_draft_dict()
+    draft["hazards"] = [
+        {
+            "hazard_id": f"H-{index}",
+            "description": f"Hazard {index}",
+            "related_losses": ["L-1"],
+        }
+        for index in range(1, 8)
+    ]
+    return draft
+
+
+def _run3_gap_draft_dict() -> dict:
+    """Return a gap draft with existing and local references."""
+    draft = valid_gap_draft_dict()
+    draft["hazards"][0].update(
+        {
+            "hazard_id": "H-8",
+            "related_losses": ["L-1", "L-2"],
+        }
+    )
+    draft["security_constraints"][0]["related_hazards"] = ["H-8", "H-1"]
+    return draft
 
 
 def _setup_mock_client(
@@ -160,6 +203,40 @@ def _observed_gemma_control_element_set_dict() -> dict:
 
 class TestRunOrchestration:
     """SP1-RUN-01 through SP1-RUN-14."""
+
+    def test_run_retries_stage1a_reference_error_and_completes(self, tmp_path):
+        """SP1 contains a bounded Stage 1a retry and preserves the graph."""
+        from asago_scenario_generator.stpa.models.loss_analysis import LossAnalysisDraft
+
+        client = _setup_mock_client()
+        client.set_response_for(
+            LossAnalysisDraft,
+            [
+                _run3_invalid_risk_draft_dict(),
+                _run3_corrected_risk_draft_dict(),
+                _run3_gap_draft_dict(),
+            ],
+        )
+
+        result = run_sp1(
+            llm_client=client,
+            use_case_text="Test use case",
+            risk_cards=make_risk_cards(),
+            run_dir=tmp_path,
+        )
+
+        assert result.stage_errors == []
+        assert result.loss_analysis is not None
+        assert result.control_structure is not None
+        assert len(result.loss_analysis.security_constraints) == 7
+
+        entries = [
+            json.loads(line) for line in (tmp_path / "calls.jsonl").read_text().splitlines()
+        ]
+        stage1a_entries = [entry for entry in entries if entry["stage"] == "stage_1a"]
+        assert [entry["success"] for entry in stage1a_entries] == [False, True, True]
+        assert stage1a_entries[0]["step"] == "risk_derivation"
+        assert "validation feedback" in stage1a_entries[1]["user_prompt_text"].lower()
 
     def test_run_01_full_run_produces_all_artifacts(self, tmp_path):
         """SP1-RUN-01: full run produces all three output artifacts."""
