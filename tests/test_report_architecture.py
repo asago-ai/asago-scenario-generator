@@ -14,10 +14,6 @@ its split out of the monolithic ``template.py``:
    moved into the ``sections_*`` modules remain importable from
    ``report.template``, so downstream callers (the generator, unit tests)
    keep their import surface after the split.
-4. **Acceptance boundary**: the ``taxonomy_report_sections`` runtime
-   handlers reach report behavior only through the public entry
-   (``report.data`` / ``report.generator`` / ``html_utils``), never
-   through ``template`` section internals.
 """
 
 from __future__ import annotations
@@ -33,9 +29,6 @@ REPORT_DIR = (
     / "src"
     / "asago_scenario_generator"
     / "report"
-)
-ACCEPTANCE_DIR = (
-    Path(__file__).resolve().parent.parent / "acceptance" / "runtime_features"
 )
 
 # Modules that may sit above the section builders and the facade.
@@ -208,46 +201,4 @@ class TestTemplateFacadeCompleteness:
                 violations.append(imp)
         assert not violations, (
             "generator.py imports section modules directly: " + ", ".join(violations)
-        )
-
-
-# ---------------------------------------------------------------------------
-# Acceptance boundary
-# ---------------------------------------------------------------------------
-
-
-class TestReportAcceptanceBoundary:
-    """taxonomy_report_sections handlers use the public report entry only."""
-
-    def test_runtime_does_not_import_template_internals(self):
-        """No report section in the runtime imports template or sections_*."""
-        violations: list[str] = []
-        root = ACCEPTANCE_DIR / "taxonomy_report_sections"
-        for path in sorted(root.glob("*.py")):
-            if path.name == "__init__.py":
-                continue
-            for imp in _extract_imports(path):
-                if imp.startswith("asago_scenario_generator.report.template") or (
-                    imp.startswith("asago_scenario_generator.report.sections_")
-                ):
-                    violations.append(f"{path.name}: imports '{imp}'")
-        assert not violations, (
-            "Runtime handlers importing report internals:\n" + "\n".join(violations)
-        )
-
-    def test_shared_report_entry_imports_only_public_surface(self):
-        """taxonomy_report.py reaches the report only via data/generator."""
-        path = ACCEPTANCE_DIR / "taxonomy_report.py"
-        imports = _extract_imports(path)
-        forbidden = [
-            imp
-            for imp in imports
-            if imp.startswith("asago_scenario_generator.report.")
-            and not (
-                imp.startswith("asago_scenario_generator.report.data")
-                or imp.startswith("asago_scenario_generator.report.generator")
-            )
-        ]
-        assert not forbidden, (
-            "taxonomy_report.py imports report internals: " + ", ".join(forbidden)
         )

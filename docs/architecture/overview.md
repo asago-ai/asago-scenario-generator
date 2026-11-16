@@ -209,17 +209,6 @@ identifiers and typed provenance, and re-validated on load without project
 objects. The public CLI command `validate-stpa-projection` applies that
 standalone check to a JSON or YAML export and prints typed violations.
 
-## Acceptance boundary
-
-`features/` contains the behavior contract. `acceptance/refresh_snapshot.py`
-uses the externally checked-out Acceptance Pipeline Specification tools to
-create ignored JSON IR, DRY reports, and pytest entrypoints under
-`build/acceptance/`. The committed runtime and handlers connect those generated
-entrypoints to public project behavior.
-
-Live LLM behavior is a separate opt-in boundary. Default unit and acceptance
-gates must remain deterministic and offline.
-
 ## Persistence boundary
 
 Generated product output is not source. Taxonomy/risk runs use immutable,

@@ -13,7 +13,6 @@ PIPELINE_DIR = (
 )
 GENERATE_DIR = PIPELINE_DIR / "generate"
 TESTS_DIR = Path(__file__).resolve().parent
-ACCEPTANCE_DIR = TESTS_DIR.parent / "acceptance"
 
 _NARRATIVE_FACADE = "asago_scenario_generator.pipeline.generate.narrative"
 _NARRATIVE_ACCESS = "asago_scenario_generator.pipeline.generate.narrative_access"
@@ -126,7 +125,7 @@ class TestNarrativeSemanticsLeaf:
 
 
 class TestNarrativeConsumersDependInward:
-    """Tests and acceptance consume access and draft leaves, not the façade."""
+    """Tests consume access and draft leaves, not the façade."""
 
     _CONSUMERS = (
         GENERATE_DIR / "__init__.py",
@@ -136,7 +135,6 @@ class TestNarrativeConsumersDependInward:
         TESTS_DIR / "test_semantic_stage_evidence.py",
         TESTS_DIR / "test_semantic_actor_narrative.py",
         TESTS_DIR / "test_narrative_outside_boundaries.py",
-        ACCEPTANCE_DIR / "runtime_features" / "taxonomy_risk.py",
     )
 
     def test_consumers_import_leaf_helpers_from_leaves(self) -> None:

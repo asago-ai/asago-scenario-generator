@@ -21,8 +21,6 @@ These tests enforce structural invariants that are easy to regress:
 4. **No import cycles**: The threat-surface dependency chain imports
    cleanly.
 
-5. **Acceptance clean-copy parity**: The taxonomy threat-surface
-   runtime feature must not import from the STPA pipeline.
 """
 
 from __future__ import annotations
@@ -130,7 +128,6 @@ class TestThreatSurfaceContractHome:
         targets = [
             SRC_ROOT,
             Path(__file__).resolve().parent.parent / "tests",
-            Path(__file__).resolve().parent.parent / "acceptance",
         ]
         shape_names = {"ThreatSurface", "ThreatSurfaceEntry"}
         violations: list[str] = []
@@ -233,36 +230,3 @@ class TestThreatSurfaceNoImportCycles:
     def test_module_imports_cleanly(self, module_name):
         mod = importlib.import_module(module_name)
         assert mod is not None
-
-
-class TestThreatSurfaceAcceptanceBoundary:
-    """Acceptance runtime handlers stay on the public derivation surface."""
-
-    def test_runtime_feature_does_not_import_stpa(self):
-        """taxonomy_threat_surface.py must not import the STPA pipeline."""
-        path = (
-            Path(__file__).resolve().parent.parent
-            / "acceptance"
-            / "runtime_features"
-            / "taxonomy_threat_surface.py"
-        )
-        imports = _extract_imports(path)
-        forbidden = [
-            imp
-            for imp in imports
-            if imp.startswith("asago_scenario_generator.stpa")
-        ]
-        assert not forbidden, (
-            "acceptance runtime imports STPA modules: " + ", ".join(forbidden)
-        )
-
-    def test_runtime_feature_imports_shapes_from_models(self):
-        """If the runtime imports the surface shape, it comes from models."""
-        source = (
-            Path(__file__).resolve().parent.parent
-            / "acceptance"
-            / "runtime_features"
-            / "taxonomy_threat_surface.py"
-        ).read_text(encoding="utf-8")
-        assert "pipeline.threats import (\n        ThreatSurface" not in source
-        assert "pipeline.threats import ThreatSurface" not in source

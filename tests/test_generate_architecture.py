@@ -26,7 +26,6 @@ GENERATE_DIR = (
     / "generate"
 )
 TESTS_DIR = Path(__file__).resolve().parent
-ACCEPTANCE_DIR = TESTS_DIR.parent / "acceptance"
 
 _TREE_FACADE = "asago_scenario_generator.pipeline.generate.tree"
 _TREE_TRANSPORT = "asago_scenario_generator.pipeline.generate.tree_transport"
@@ -296,14 +295,13 @@ class TestTreeFacadeDoesNotReexportLeafHelpers:
         assert _TREE_FACADE not in imports
 
     def test_consumers_import_leaf_helpers_from_leaves(self) -> None:
-        """Tests and acceptance do not reach leaf helpers through tree.py."""
+        """Tests do not reach leaf helpers through tree.py."""
         consumers = (
             TESTS_DIR / "test_consistency_enforcement.py",
             TESTS_DIR / "test_cmps9_typed_actions.py",
             TESTS_DIR / "test_external_impact_transport.py",
             TESTS_DIR / "test_projection_traceability.py",
             TESTS_DIR / "test_attack_tree_retry.py",
-            ACCEPTANCE_DIR / "runtime_features" / "taxonomy_risk.py",
         )
         for path in consumers:
             leaked = _imported_names(path, _TREE_FACADE) & _LEAF_HELPERS_ON_TREE
