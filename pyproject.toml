@@ -40,9 +40,6 @@ exclude-newer = "7 days"
 "data" = "asago_scenario_generator/data/bundled"
 
 [tool.pytest.ini_options]
-# Bare `pytest` runs the unit suite only. The acceptance suite is generated
-# from Gherkin IR and is run explicitly (`pytest build/acceptance/generated/`) so
-# that a generation step is never mistaken for a unit-test regression.
 testpaths = ["tests"]
 # Resolve the package from the rootdir-relative src tree so pytest runs inside
 # isolated mutation-worker copies import the copy being mutated rather than an
@@ -69,7 +66,4 @@ norecursedirs = [
     "output",
     "data",
     "*.egg-info",
-]
-markers = [
-    "acceptance: generated Gherkin acceptance test (run via build/acceptance/generated/)",
 ]

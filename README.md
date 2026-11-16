@@ -207,18 +207,12 @@ asago-scenario-generator validate-stpa-projection \
 
 ```bash
 ./scripts/quality.sh
-./scripts/acceptance.sh
 uv run pytest tests/ -q
 ```
 
-The unit and default acceptance suites are deterministic and do not require an
-LLM endpoint. Live-model acceptance is opt-in with
-`ASAGO_SCENARIO_GENERATOR_QA_PIPELINE=1` and is expected to fail visibly when
-the configured endpoint is unavailable.
+The unit suite is deterministic and does not require an LLM endpoint.
 
-Gherkin files under `features/` are committed source. Acceptance IR, DRY
-reports, generated entrypoints, pipeline output, and harness state are ignored.
-See [the development methodology](docs/development/swarmforge.md) and
+Pipeline output and harness state are ignored. See the
 [architecture overview](docs/architecture/overview.md).
 
 ## License

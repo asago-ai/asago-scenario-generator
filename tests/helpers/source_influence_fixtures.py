@@ -1,12 +1,9 @@
 """Shared deterministic fixtures for generate-path source-influence provenance.
 
-Both the unit tests (``tests/test_source_influence_provenance.py``) and the
-acceptance runtime handlers (``acceptance/runtime_features/taxonomy_risk.py``)
-drive the real generate path with the same scripted inputs: a KCX capability
-profile carrying capability-constraint sub-codes, the three-leaf/three-step
-projection fixtures, and a builder seed.  These factories keep the two
-surfaces in lockstep, so the generate-path acceptance scenarios (TSIP 10-12)
-and the unit tests exercise identical artifact surfaces.
+The unit tests (``tests/test_source_influence_provenance.py``) drive the real
+generate path with these scripted inputs: a KCX capability profile carrying
+capability-constraint sub-codes, the three-leaf/three-step projection
+fixtures, and a builder seed.
 """
 
 from __future__ import annotations
