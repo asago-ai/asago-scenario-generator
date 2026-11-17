@@ -394,6 +394,7 @@ All diversity hints are injected into LLM prompts as guidance. The LLM may devia
 | Top K | `ASAGO_SCENARIO_GENERATOR_TOP_K` | (optional) |
 | Guided decoding | `ASAGO_SCENARIO_GENERATOR_USE_GUIDED_DECODING` | `false` |
 | Request timeout | `ASAGO_SCENARIO_GENERATOR_TIMEOUT` | `300` seconds |
+| JSON Schema compatibility | `ASAGO_SCENARIO_GENERATOR_JSON_SCHEMA_COMPAT` | `native` (`strict` strips validation-only keywords for OpenAI-strict validators) |
 
 - **Structured calls:** `openai.beta.chat.completions.parse(response_format=PydanticModel)`
 - **Unstructured calls:** `openai.chat.completions.create()` returning raw text

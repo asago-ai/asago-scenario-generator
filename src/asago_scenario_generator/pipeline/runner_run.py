@@ -26,6 +26,7 @@ from asago_scenario_generator.llm.client import LLMClient
 from asago_scenario_generator.manifest import (
     MANIFEST_V3 as MANIFEST_VERSION,
 )
+from asago_scenario_generator.llm.schema_compat import resolve_schema_compat
 from asago_scenario_generator.manifest import (
     ArtifactRole,
     ManifestIntegrityError,
@@ -454,6 +455,7 @@ def _effective_pipeline_options(
     effective_model: Any,
     presentation_fallback: str,
     qualification_facts_path: Path | None,
+    schema_compat: str,
 ) -> dict[str, Any]:
     """Build the canonical effective-options dict for provenance."""
     effective_options = {
@@ -481,6 +483,7 @@ def _effective_pipeline_options(
         "top_p": effective_model.top_p,
         "top_k": effective_model.top_k,
         "use_guided_decoding": effective_model.use_guided_decoding,
+        "schema_compat": schema_compat,
         "header_names": _sorted_header_names(effective_model),
         "presentation_fallback": presentation_fallback,
         "qualification_facts_mode": (
@@ -1289,6 +1292,7 @@ def _run_pipeline_body(
             effective_model=effective_model,
             presentation_fallback=presentation_fallback,
             qualification_facts_path=qualification_facts_path,
+            schema_compat=resolve_schema_compat(json_schema_compat),
         )
         config_digest = compute_config_digest(effective_options)
         provenance = capture_provenance(

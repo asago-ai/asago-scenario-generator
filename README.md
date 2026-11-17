@@ -56,6 +56,10 @@ Requests have a 300-second application default deadline. Named-profile
 The SDK's implicit retries are disabled so retry decisions remain bounded and
 visible in pipeline evidence.
 
+`generate` and `resume` accept `--json-schema-compat native|strict`; the same
+mode can be set with `ASAGO_SCENARIO_GENERATOR_JSON_SCHEMA_COMPAT`. On resume,
+the persisted run value is used unless the flag or env var overrides it.
+
 Structured calls request OpenAI ``strict`` JSON Schema. Some otherwise valid
 OpenAI-compatible endpoints reject validation-only keywords that Pydantic
 emits (for example ``maxProperties`` or ``maxLength``). Set

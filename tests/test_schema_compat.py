@@ -9,6 +9,7 @@ from asago_scenario_generator.llm import client as client_module
 from asago_scenario_generator.llm.client import LLMClient
 from asago_scenario_generator.llm.schema_compat import (
     SCHEMA_COMPAT_ENV,
+    _STRICT_UNSUPPORTED_KEYWORDS,
     resolve_schema_compat,
     strict_json_schema,
     strict_json_schema_model,
@@ -18,25 +19,7 @@ from asago_scenario_generator.pipeline.generate.behavior_semantics import (
     build_behavior_draft_response_model,
 )
 
-UNSUPPORTED = {
-    "maxProperties",
-    "minProperties",
-    "maxLength",
-    "minLength",
-    "maxItems",
-    "minItems",
-    "uniqueItems",
-    "pattern",
-    "format",
-    "minimum",
-    "maximum",
-    "exclusiveMinimum",
-    "exclusiveMaximum",
-    "multipleOf",
-    "default",
-    "propertyNames",
-    "patternProperties",
-}
+UNSUPPORTED = set(_STRICT_UNSUPPORTED_KEYWORDS) - {"examples"}  # a property may be named examples
 
 
 def _schema_keywords(value: object) -> set[str]:
@@ -113,6 +96,24 @@ def test_strict_projection_handles_const():
     assert strict_json_schema(schema)["properties"]["kind"] == {"enum": ["action"]}
 
 
+def test_strict_projection_converts_one_of_and_strips_children():
+    schema = {
+        "oneOf": [
+            {"type": "string", "maxLength": 4},
+            {"type": "integer", "minimum": 0},
+        ],
+        "discriminator": {"propertyName": "kind"},
+    }
+    projected = strict_json_schema(schema)
+    assert "oneOf" not in projected and "discriminator" not in projected
+    assert projected["anyOf"] == [{"type": "string"}, {"type": "integer"}]
+
+
+def test_strict_projection_removes_prefix_items():
+    schema = {"type": "array", "prefixItems": [{"type": "string", "maxLength": 2}]}
+    assert "prefixItems" not in strict_json_schema(schema)
+
+
 class _StopRequest(Exception):
     pass
 
@@ -143,6 +144,7 @@ def test_client_uses_strict_wire_format(monkeypatch):
 
 
 def test_client_keeps_native_format_by_default(monkeypatch):
+    monkeypatch.delenv(SCHEMA_COMPAT_ENV, raising=False)
     captured = _capturing_request_completion(monkeypatch)
     client = LLMClient(
         base_url="https://example.invalid/v1",
@@ -174,3 +176,26 @@ def test_stpa_and_taxonomy_schema_projections_match():
     )
     schema = model.model_json_schema()
     assert stpa.strict_json_schema(schema) == strict_json_schema(schema)
+
+
+def test_resume_client_keeps_persisted_schema_mode():
+    from asago_scenario_generator.pipeline.runner_resume import _resume_llm_client
+
+    client = _resume_llm_client(
+        "https://example.invalid/v1",
+        "not-needed",
+        "model",
+        None,
+        schema_compat="strict",
+    )
+    assert client.schema_compat == "strict"
+
+
+def test_generate_cli_exposes_schema_compat_flag():
+    from typer.testing import CliRunner
+
+    from asago_scenario_generator.cli import app
+
+    result = CliRunner().invoke(app, ["generate", "--help"])
+    assert result.exit_code == 0
+    assert "--json-schema-compat" in result.stdout

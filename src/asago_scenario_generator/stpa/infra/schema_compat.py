@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import copy
 import os
+from functools import lru_cache
 from typing import Any
 
 from pydantic import BaseModel
@@ -62,12 +63,26 @@ _STRICT_UNSUPPORTED_KEYWORDS = frozenset(
         "$comment",
         "propertyNames",
         "patternProperties",
+        "discriminator",
+        "prefixItems",
     }
 )
 
 _SUBSCHEMA_MAP_KEYS = ("properties", "$defs", "definitions", "dependentSchemas")
-_SUBSCHEMA_VALUE_KEYS = ("items", "additionalProperties", "not", "contains")
-_SUBSCHEMA_LIST_KEYS = ("anyOf", "allOf", "oneOf", "prefixItems")
+_SUBSCHEMA_VALUE_KEYS = (
+    "items",
+    "additionalProperties",
+    "additionalItems",
+    "not",
+    "contains",
+    "if",
+    "then",
+    "else",
+    "unevaluatedProperties",
+    "unevaluatedItems",
+    "contentSchema",
+)
+_SUBSCHEMA_LIST_KEYS = ("anyOf", "allOf")
 
 
 def resolve_schema_compat(value: str | None = None) -> str:
@@ -99,6 +114,11 @@ def _strip_node(node: Any) -> None:
     if "const" in node:
         value = node.pop("const")
         node.setdefault("enum", [value])
+    # Strict validators support anyOf, not oneOf. The variants remain
+    # locally validated by Pydantic after parsing.
+    one_of = node.pop("oneOf", None)
+    if one_of is not None and "anyOf" not in node:
+        node["anyOf"] = one_of
     for key in _SUBSCHEMA_MAP_KEYS:
         mapping = node.get(key)
         if isinstance(mapping, dict):
@@ -116,8 +136,13 @@ def _strip_node(node: Any) -> None:
         if isinstance(values, list):
             for subschema in values:
                 _strip_node(subschema)
+    # ``oneOf`` is traversed before it is converted to anyOf above.
+    if isinstance(one_of, list):
+        for subschema in one_of:
+            _strip_node(subschema)
 
 
+@lru_cache(maxsize=256)
 def strict_json_schema_model(model: type[BaseModel]) -> type[BaseModel]:
     """Return a subclass whose wire schema is strict-validator compatible.
 

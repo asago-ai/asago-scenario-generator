@@ -333,6 +333,7 @@ def _resume_llm_client(
     api_key: str | None,
     model: str | None,
     persisted_model: Any,
+    schema_compat: str | None = None,
 ) -> Any:
     """Build the resume LLM client from persisted model configuration."""
     return LLMClient(
@@ -341,6 +342,7 @@ def _resume_llm_client(
         model=_resolved_resume_model(model, persisted_model),
         temperature=_persisted_temperature(persisted_model),
         max_completion_tokens=_persisted_max_completion_tokens(persisted_model),
+        schema_compat=schema_compat,
     )
 
 
