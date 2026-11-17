@@ -65,8 +65,11 @@ OpenAI-compatible endpoints reject validation-only keywords that Pydantic
 emits (for example ``maxProperties`` or ``maxLength``). Set
 ``ASAGO_SCENARIO_GENERATOR_JSON_SCHEMA_COMPAT=strict`` to project the wire
 schema onto the strict contract: those keywords are omitted from the request
-while Pydantic still enforces them locally on the parsed response. The default
-is ``native`` (unchanged schemas).
+while Pydantic still enforces them locally on the parsed response. Bound hints
+are retained in the field descriptions so the model still sees the limits, and
+the optional ``examples`` map is omitted in strict mode because strict
+validators reject its open-object shape (Pydantic's empty default applies).
+The default is ``native`` (unchanged schemas).
 
 Gemma 4 deployments used for structured generation need a compact JSON grammar
 configuration to avoid valid-prefix responses stalling on whitespace. See the
