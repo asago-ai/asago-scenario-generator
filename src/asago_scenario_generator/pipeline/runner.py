@@ -1206,6 +1206,7 @@ def run_pipeline(
     eval: bool = True,
     log_level: str = "INFO",
     structured: bool = False,
+    json_schema_compat: str | None = None,
 ) -> PipelineResult:
     """Run the full asago-scenario-generator pipeline (stages 1-4).
 
@@ -1262,6 +1263,7 @@ def run_pipeline(
         eval=eval,
         log_level=log_level,
         structured=structured,
+        json_schema_compat=json_schema_compat,
     )
 
 

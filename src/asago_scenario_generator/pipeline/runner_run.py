@@ -124,6 +124,7 @@ def _run_pipeline_guarded(
     eval: bool,
     log_level: str,
     structured: bool,
+    json_schema_compat: str | None = None,
 ) -> PipelineResult:
     """Run the guarded lifecycle with persistent failed-manifest recovery."""
     resolved_generation_mode = _validate_run_pipeline_options(
@@ -171,6 +172,7 @@ def _run_pipeline_guarded(
         eval=eval,
         log_level=log_level,
         structured=structured,
+        json_schema_compat=json_schema_compat,
         run_id=run_id,
         timestamp_start=timestamp_start,
         provenance=provenance,
@@ -1198,6 +1200,7 @@ def _run_pipeline_body(
     eval: bool,
     log_level: str,
     structured: bool,
+    json_schema_compat: str | None = None,
     run_id: str,
     timestamp_start: str,
     provenance: Provenance | None,
@@ -1246,7 +1249,10 @@ def _run_pipeline_body(
             api_key=api_key,
             model=model,
         )
-        client = LLMClient(**effective_model.client_kwargs())
+        client = LLMClient(
+            **effective_model.client_kwargs(),
+            schema_compat=json_schema_compat,
+        )
 
         # --- Capture provenance at run start, before inputs can change ---
         # This captures Git state, resolved model config, prompt hashes,

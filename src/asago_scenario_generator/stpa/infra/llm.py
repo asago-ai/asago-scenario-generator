@@ -15,6 +15,11 @@ from typing import Any
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
+from asago_scenario_generator.stpa.infra.schema_compat import (
+    SCHEMA_COMPAT_STRICT,
+    resolve_schema_compat,
+    strict_json_schema_model,
+)
 from asago_scenario_generator.model_profiles import DEFAULT_REQUEST_TIMEOUT_SECONDS
 
 DEFAULT_TEMPERATURE: float = 0.4
@@ -271,6 +276,7 @@ class LLMClient:
         top_k: int | None = None,
         use_guided_decoding: bool | None = None,
         timeout: float | None = None,
+        schema_compat: str | None = None,
     ) -> None:
         self.base_url = _resolve_base_url(base_url)
         self.api_key = _resolve_api_key(api_key)
@@ -300,6 +306,7 @@ class LLMClient:
             False,
         )
         self.timeout = _resolve_timeout(timeout, os.environ.get(_ENV_TIMEOUT))
+        self.schema_compat = resolve_schema_compat(schema_compat)
 
         if not self.base_url:
             raise ValueError(
@@ -354,10 +361,13 @@ class LLMClient:
     ) -> tuple[Any, Any]:
         """Request a completion and return its response plus extracted content."""
         if response_format is not None and not allow_unvalidated:
+            wire_format = response_format
+            if self.schema_compat == SCHEMA_COMPAT_STRICT:
+                wire_format = strict_json_schema_model(wire_format)
             response = self._client.beta.chat.completions.parse(
                 model=self.model,
                 messages=messages,
-                response_format=response_format,
+                response_format=wire_format,
                 **extra_kwargs,
             )
             return response, response.choices[0].message.parsed

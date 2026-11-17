@@ -167,6 +167,13 @@ def generate(
         help="Log level for console output.",
         case_sensitive=False,
     ),
+    json_schema_compat: str = typer.Option(
+        "native",
+        "--json-schema-compat",
+        envvar="ASAGO_SCENARIO_GENERATOR_JSON_SCHEMA_COMPAT",
+        help="Structured-output schema mode: native (unchanged) or strict "
+        "(strip validation-only keywords for OpenAI-strict validators).",
+    ),
     structured: bool = typer.Option(
         False,
         help="Use JSON-lines format for the log file.",
@@ -191,6 +198,10 @@ def generate(
         profiles_file=profiles_file,
     )
     _validate_generate_enums(presentation_fallback, generation_mode)
+    if json_schema_compat not in {"native", "strict"}:
+        raise typer.BadParameter(
+            "must be 'native' or 'strict'", param_hint="--json-schema-compat"
+        )
 
     try:
         from asago_scenario_generator.pipeline.runner import run_pipeline
@@ -217,6 +228,7 @@ def generate(
             eval=eval,
             log_level=log_level,
             structured=structured,
+            json_schema_compat=json_schema_compat,
         )
 
         outcome_exit_code = _print_pipeline_summary(result)
