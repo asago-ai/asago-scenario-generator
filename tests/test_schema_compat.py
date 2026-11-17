@@ -106,7 +106,9 @@ def test_strict_projection_converts_one_of_and_strips_children():
     }
     projected = strict_json_schema(schema)
     assert "oneOf" not in projected and "discriminator" not in projected
-    assert projected["anyOf"] == [{"type": "string"}, {"type": "integer"}]
+    assert projected["anyOf"][0]["type"] == "string"
+    assert projected["anyOf"][0]["description"] == "Maximum 4 characters."
+    assert projected["anyOf"][1] == {"type": "integer"}
 
 
 def test_strict_projection_removes_prefix_items():
@@ -199,3 +201,15 @@ def test_generate_cli_exposes_schema_compat_flag():
     result = CliRunner().invoke(app, ["generate", "--help"])
     assert result.exit_code == 0
     assert "--json-schema-compat" in result.stdout
+
+
+def test_strict_projection_drops_open_examples_and_keeps_hints():
+    model = build_behavior_draft_response_model(
+        tuple(f"a{i}" for i in range(4)), examples_allowed=True
+    )
+    strict = strict_json_schema_model(model).model_json_schema()
+    step = strict["$defs"]["BehaviorDraftStep"]
+    assert "examples" not in step["properties"]
+    assert "examples" not in step["required"]
+    # The removed maxLength still gives the model a human-readable bound.
+    assert "Maximum 500 characters." in step["properties"]["text"]["description"]

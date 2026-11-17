@@ -106,9 +106,24 @@ def strict_json_schema(schema: dict[str, Any]) -> dict[str, Any]:
     return projected
 
 
+def _append_limit_hint(node: dict[str, Any], keyword: str, label: str) -> None:
+    limit = node.get(keyword)
+    if not isinstance(limit, int):
+        return
+    hint = f"Maximum {limit} {label}."
+    description = str(node.get("description") or "").strip()
+    if hint not in description:
+        node["description"] = f"{description} {hint}".strip()
+
+
 def _strip_node(node: Any) -> None:
     if not isinstance(node, dict):
         return
+    # Preserve the useful part of local bounds in the prompt-facing
+    # description; strict validators do not accept the keywords themselves.
+    _append_limit_hint(node, "maxLength", "characters")
+    _append_limit_hint(node, "maxItems", "items")
+    _append_limit_hint(node, "maxProperties", "properties")
     for keyword in _STRICT_UNSUPPORTED_KEYWORDS:
         node.pop(keyword, None)
     if "const" in node:
@@ -122,6 +137,14 @@ def _strip_node(node: Any) -> None:
     for key in _SUBSCHEMA_MAP_KEYS:
         mapping = node.get(key)
         if isinstance(mapping, dict):
+            # Strict validators reject the open-object shape used by the
+            # optional ``examples`` map. Local validation supplies the
+            # model's empty default when the wire schema omits it.
+            if key == "properties" and "examples" in mapping:
+                mapping.pop("examples")
+                required = node.get("required")
+                if isinstance(required, list):
+                    node["required"] = [item for item in required if item != "examples"]
             for subschema in mapping.values():
                 _strip_node(subschema)
     for key in _SUBSCHEMA_VALUE_KEYS:
