@@ -203,15 +203,16 @@ def test_resume_client_keeps_persisted_schema_mode():
 
 
 def test_generate_cli_exposes_schema_compat_flag():
-    from typer.testing import CliRunner
+    import typer.main
 
     from asago_scenario_generator.cli import app
 
-    # Rich truncates long option names on narrow terminals; CI runs without a
-    # tty and can resolve to a width where "--json-schema-compat" is elided.
-    result = CliRunner().invoke(app, ["generate", "--help"], env={"COLUMNS": "120"})
-    assert result.exit_code == 0
-    assert "--json-schema-compat" in result.stdout
+    # Inspect the registered command rather than the rendered help: Rich
+    # truncates long option names on narrow, non-tty terminals, which made
+    # the help-text assertion fail in CI while passing locally.
+    group = typer.main.get_command(app)
+    options = {opt for param in group.commands["generate"].params for opt in param.opts}
+    assert "--json-schema-compat" in options
 
 
 def test_strict_projection_drops_open_examples_and_keeps_hints():
