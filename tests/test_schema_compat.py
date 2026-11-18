@@ -9,6 +9,7 @@ from asago_scenario_generator.llm import client as client_module
 from asago_scenario_generator.llm.client import LLMClient
 from asago_scenario_generator.llm.schema_compat import (
     SCHEMA_COMPAT_ENV,
+    SCHEMA_COMPAT_NATIVE,
     _STRICT_UNSUPPORTED_KEYWORDS,
     resolve_schema_compat,
     strict_json_schema,
@@ -19,7 +20,9 @@ from asago_scenario_generator.pipeline.generate.behavior_semantics import (
     build_behavior_draft_response_model,
 )
 
-UNSUPPORTED = set(_STRICT_UNSUPPORTED_KEYWORDS) - {"examples"}  # a property may be named examples
+UNSUPPORTED = set(_STRICT_UNSUPPORTED_KEYWORDS) - {
+    "examples"
+}  # a property may be named examples
 
 
 def _schema_keywords(value: object) -> set[str]:
@@ -158,6 +161,12 @@ def test_client_keeps_native_format_by_default(monkeypatch):
     assert captured["response_format"] is BehaviorDraftV2
 
 
+def test_client_without_init_defaults_to_native():
+    """Acceptance fixtures build clients without __init__; they must not crash."""
+    client = LLMClient.__new__(LLMClient)
+    assert client.schema_compat == SCHEMA_COMPAT_NATIVE
+
+
 def test_stpa_client_resolves_schema_compat(monkeypatch):
     from asago_scenario_generator.stpa.infra.llm import LLMClient as StpaClient
 
@@ -198,7 +207,9 @@ def test_generate_cli_exposes_schema_compat_flag():
 
     from asago_scenario_generator.cli import app
 
-    result = CliRunner().invoke(app, ["generate", "--help"])
+    # Rich truncates long option names on narrow terminals; CI runs without a
+    # tty and can resolve to a width where "--json-schema-compat" is elided.
+    result = CliRunner().invoke(app, ["generate", "--help"], env={"COLUMNS": "120"})
     assert result.exit_code == 0
     assert "--json-schema-compat" in result.stdout
 

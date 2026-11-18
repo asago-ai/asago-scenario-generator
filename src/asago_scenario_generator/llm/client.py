@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from asago_scenario_generator.llm.messages import prompt_messages as _prompt_messages
 from asago_scenario_generator.llm.schema_compat import (
+    SCHEMA_COMPAT_NATIVE,
     SCHEMA_COMPAT_STRICT,
     resolve_schema_compat,
     strict_json_schema_model,
@@ -472,6 +473,10 @@ class LLMClient:
     """Thin wrapper around the OpenAI SDK for structured and unstructured completions."""
 
     DEFAULT_TEMPERATURE: float = _DEFAULT_TEMPERATURE
+
+    # Class-level default so instances built without __init__ (acceptance
+    # fixtures, test doubles) still resolve to the native wire format.
+    schema_compat: str = SCHEMA_COMPAT_NATIVE
 
     _OPENROUTER_DEFAULT_HEADERS: dict[str, str] = {
         "HTTP-Referer": "https://github.com/asago-ai/asago-scenario-generator",

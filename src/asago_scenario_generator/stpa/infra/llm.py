@@ -16,6 +16,7 @@ from openai import OpenAI
 from pydantic import BaseModel, Field
 
 from asago_scenario_generator.stpa.infra.schema_compat import (
+    SCHEMA_COMPAT_NATIVE,
     SCHEMA_COMPAT_STRICT,
     resolve_schema_compat,
     strict_json_schema_model,
@@ -261,6 +262,10 @@ class LLMClient:
     """Thin wrapper around the OpenAI SDK for structured and unstructured completions."""
 
     DEFAULT_TEMPERATURE: float = DEFAULT_TEMPERATURE
+
+    # Class-level default so instances built without __init__ (test doubles)
+    # still resolve to the native wire format.
+    schema_compat: str = SCHEMA_COMPAT_NATIVE
 
     _OPENROUTER_DEFAULT_HEADERS: dict[str, str] = _OPENROUTER_DEFAULT_HEADERS
 
