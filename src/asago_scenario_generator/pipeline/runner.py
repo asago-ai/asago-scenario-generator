@@ -835,6 +835,7 @@ def resume_pipeline(
     eval: bool | None = None,
     log_level: str = "INFO",
     structured: bool = False,
+    json_schema_compat: str | None = None,
 ) -> PipelineResult:
     """Resume exactly one interrupted manifest-v3 run in place."""
     from asago_scenario_generator.pipeline.coverage_planning import CoveragePlan
@@ -879,7 +880,13 @@ def resume_pipeline(
     _setup_resume_logging(log_level, supplied, structured)
     persisted_model = provenance.model_config_provenance
     _validate_resume_model_config(model, base_url, persisted_model)
-    client = _resume_llm_client(base_url, api_key, model, persisted_model)
+    client = _resume_llm_client(
+        base_url,
+        api_key,
+        model,
+        persisted_model,
+        schema_compat=json_schema_compat or options.get("schema_compat"),
+    )
     finalization = run_target_finalization(
         run_dir=supplied,
         run_id=manifest.run_id,
@@ -1206,6 +1213,7 @@ def run_pipeline(
     eval: bool = True,
     log_level: str = "INFO",
     structured: bool = False,
+    json_schema_compat: str | None = None,
 ) -> PipelineResult:
     """Run the full asago-scenario-generator pipeline (stages 1-4).
 
@@ -1227,6 +1235,8 @@ def run_pipeline(
         eval: Whether to run deterministic eval metrics after generation (default True).
         log_level: Logging level for the console handler.
         structured: Whether the run-local file log uses JSON-lines format.
+        json_schema_compat: ``native`` (default) or ``strict`` structured-output
+            wire-schema mode; persisted for resume.
 
     The v3 lifecycle persists the immutable plan and inventory, runs
     entirely inside the guarded body: it builds the coverage universe
@@ -1262,6 +1272,7 @@ def run_pipeline(
         eval=eval,
         log_level=log_level,
         structured=structured,
+        json_schema_compat=json_schema_compat,
     )
 
 

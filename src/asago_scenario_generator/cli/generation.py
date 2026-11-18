@@ -16,6 +16,7 @@ from asago_scenario_generator.cli._shared import (
     _resolve_use_case,
     _validate_file,
 )
+from asago_scenario_generator.llm.schema_compat import resolve_schema_compat
 
 
 def _validate_optional_inputs(
@@ -167,6 +168,13 @@ def generate(
         help="Log level for console output.",
         case_sensitive=False,
     ),
+    json_schema_compat: str = typer.Option(
+        "native",
+        "--json-schema-compat",
+        envvar="ASAGO_SCENARIO_GENERATOR_JSON_SCHEMA_COMPAT",
+        help="Structured-output schema mode: native (unchanged) or strict "
+        "(strip validation-only keywords for OpenAI-strict validators).",
+    ),
     structured: bool = typer.Option(
         False,
         help="Use JSON-lines format for the log file.",
@@ -191,6 +199,10 @@ def generate(
         profiles_file=profiles_file,
     )
     _validate_generate_enums(presentation_fallback, generation_mode)
+    try:
+        json_schema_compat = resolve_schema_compat(json_schema_compat)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--json-schema-compat") from exc
 
     try:
         from asago_scenario_generator.pipeline.runner import run_pipeline
@@ -217,6 +229,7 @@ def generate(
             eval=eval,
             log_level=log_level,
             structured=structured,
+            json_schema_compat=json_schema_compat,
         )
 
         outcome_exit_code = _print_pipeline_summary(result)
@@ -235,6 +248,12 @@ def resume(
     model: str | None = typer.Option(None),
     log_level: str = typer.Option("INFO", case_sensitive=False),
     structured: bool = typer.Option(False),
+    json_schema_compat: str | None = typer.Option(
+        None,
+        "--json-schema-compat",
+        envvar="ASAGO_SCENARIO_GENERATOR_JSON_SCHEMA_COMPAT",
+        help="Structured-output schema mode override (default: persisted run value).",
+    ),
 ) -> None:
     """Resume an interrupted manifest-v3 run in the same directory."""
     from asago_scenario_generator.log_config import setup_logging
@@ -250,6 +269,7 @@ def resume(
             model=model,
             log_level=log_level,
             structured=structured,
+            json_schema_compat=json_schema_compat,
         )
         typer.echo(f"\nPipeline resumed: {result.run_id}")
         typer.echo(f"  Run directory: {result.run_dir}")

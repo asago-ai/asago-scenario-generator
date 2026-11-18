@@ -14,6 +14,12 @@ from openai import LengthFinishReasonError, OpenAI
 from pydantic import BaseModel, Field
 
 from asago_scenario_generator.llm.messages import prompt_messages as _prompt_messages
+from asago_scenario_generator.llm.schema_compat import (
+    SCHEMA_COMPAT_NATIVE,
+    SCHEMA_COMPAT_STRICT,
+    resolve_schema_compat,
+    strict_json_schema_model,
+)
 from asago_scenario_generator.model_profiles import DEFAULT_REQUEST_TIMEOUT_SECONDS
 
 _DEFAULT_TEMPERATURE = 0.4
@@ -468,6 +474,10 @@ class LLMClient:
 
     DEFAULT_TEMPERATURE: float = _DEFAULT_TEMPERATURE
 
+    # Class-level default so instances built without __init__ (acceptance
+    # fixtures, test doubles) still resolve to the native wire format.
+    schema_compat: str = SCHEMA_COMPAT_NATIVE
+
     _OPENROUTER_DEFAULT_HEADERS: dict[str, str] = {
         "HTTP-Referer": "https://github.com/asago-ai/asago-scenario-generator",
         "X-Title": "asago-scenario-generator",
@@ -485,6 +495,7 @@ class LLMClient:
         top_k: int | None = None,
         use_guided_decoding: bool = False,
         timeout: float | None = None,
+        schema_compat: str | None = None,
     ) -> None:
         self.base_url = _resolve_base_url_arg(base_url)
         self.api_key = _resolve_api_key_arg(api_key)
@@ -494,6 +505,7 @@ class LLMClient:
         self.top_p = top_p
         self.top_k = top_k
         self.use_guided_decoding = use_guided_decoding
+        self.schema_compat = resolve_schema_compat(schema_compat)
         self.timeout = (
             timeout if timeout is not None else DEFAULT_REQUEST_TIMEOUT_SECONDS
         )
@@ -578,9 +590,12 @@ class LLMClient:
         ``finish_reason == "length"`` — into one typed
         ``CompletionLengthError`` carrying usage evidence.
         """
+        wire_format = response_format
+        if wire_format is not None and self.schema_compat == SCHEMA_COMPAT_STRICT:
+            wire_format = strict_json_schema_model(wire_format)
         try:
             response, content = _request_completion(
-                self._client, self.model, messages, response_format, extra_kwargs
+                self._client, self.model, messages, wire_format, extra_kwargs
             )
         except LengthFinishReasonError as exc:
             return _recover_length_failure(exc, response_format)

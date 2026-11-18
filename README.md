@@ -41,6 +41,7 @@ variables:
 - `ASAGO_SCENARIO_GENERATOR_USE_GUIDED_DECODING`
 - `ASAGO_SCENARIO_GENERATOR_TIMEOUT`
 - `ASAGO_SCENARIO_GENERATOR_EXTRA_HEADERS`
+- `ASAGO_SCENARIO_GENERATOR_JSON_SCHEMA_COMPAT` (`native` or `strict`)
 
 For named model profiles, copy
 `config/model-profiles.example.yaml` to `config/model-profiles.yaml`. The real
@@ -54,6 +55,21 @@ Requests have a 300-second application default deadline. Named-profile
 `timeout` and `ASAGO_SCENARIO_GENERATOR_TIMEOUT` values override that default.
 The SDK's implicit retries are disabled so retry decisions remain bounded and
 visible in pipeline evidence.
+
+`generate` and `resume` accept `--json-schema-compat native|strict`; the same
+mode can be set with `ASAGO_SCENARIO_GENERATOR_JSON_SCHEMA_COMPAT`. On resume,
+the persisted run value is used unless the flag or env var overrides it.
+
+Structured calls request OpenAI ``strict`` JSON Schema. Some otherwise valid
+OpenAI-compatible endpoints reject validation-only keywords that Pydantic
+emits (for example ``maxProperties`` or ``maxLength``). Set
+``ASAGO_SCENARIO_GENERATOR_JSON_SCHEMA_COMPAT=strict`` to project the wire
+schema onto the strict contract: those keywords are omitted from the request
+while Pydantic still enforces them locally on the parsed response. Bound hints
+are retained in the field descriptions so the model still sees the limits, and
+the optional ``examples`` map is omitted in strict mode because strict
+validators reject its open-object shape (Pydantic's empty default applies).
+The default is ``native`` (unchanged schemas).
 
 Gemma 4 deployments used for structured generation need a compact JSON grammar
 configuration to avoid valid-prefix responses stalling on whitespace. See the
